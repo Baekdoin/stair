@@ -639,18 +639,18 @@ function update(dt) {
   }
 }
 
-function drawFlower(cx, cy, radius = 5.5) {
+function drawFlower(cx, cy, radius = 5.8) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.fillStyle = "#ffffff";
-  ctx.strokeStyle = "#1e1e24";
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "#232028";
+  ctx.lineWidth = 1.6;
 
   for (let i = 0; i < 4; i++) {
     ctx.save();
     ctx.rotate((Math.PI / 2) * i + Math.PI / 4);
     ctx.beginPath();
-    ctx.ellipse(0, -radius * 0.72, radius * 0.55, radius * 0.68, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -radius * 0.72, radius * 0.56, radius * 0.72, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
@@ -658,7 +658,7 @@ function drawFlower(cx, cy, radius = 5.5) {
 
   ctx.fillStyle = "#ffd32a";
   ctx.beginPath();
-  ctx.arc(0, 0, radius * 0.4, 0, Math.PI * 2);
+  ctx.arc(0, 0, radius * 0.42, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
@@ -666,106 +666,242 @@ function drawFlower(cx, cy, radius = 5.5) {
 }
 
 function drawMyMelodyCharacter(px, py, hopOffset) {
-  const outline = "#1e1e24";
+  const outline = "#232028";
   const pinkHood = "#ff3b9a";
   const whiteSkin = "#ffffff";
+  const isJumping = hopOffset > 0.5;
 
   ctx.save();
   ctx.translate(px, py - hopOffset);
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
-  // 두 다리
+  // 1. 뒤쪽 하얀 꽁지 꼬리
   ctx.fillStyle = whiteSkin;
   ctx.strokeStyle = outline;
-  ctx.lineWidth = 2.1;
+  ctx.lineWidth = 2.0;
   ctx.beginPath();
-  ctx.roundRect(-10.5, -13, 9.5, 13, 4.5);
-  ctx.roundRect(1, -13, 9.5, 13, 4.5);
+  ctx.arc(-13, -15, 4.3, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // 몸통
-  ctx.beginPath();
-  ctx.ellipse(0, -20, 13, 10.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // 핑크 케이프
-  ctx.fillStyle = pinkHood;
-  ctx.beginPath();
-  ctx.moveTo(-14, -28);
-  ctx.lineTo(-18, -21);
-  ctx.lineTo(-6, -23.5);
-  ctx.lineTo(0, -26.5);
-  ctx.lineTo(6, -23.5);
-  ctx.lineTo(18, -21);
-  ctx.lineTo(14, -28);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // 귀 1 (뒤쪽 접힌 핑크 귀 - 확실히 구분되도록 바깥쪽 배치)
-  ctx.fillStyle = pinkHood;
-  ctx.beginPath();
-  ctx.moveTo(6, -47);
-  ctx.bezierCurveTo(22, -62, 26, -42, 12, -37);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // 귀 2 (앞쪽 길게 뻗은 핑크 귀)
-  ctx.beginPath();
-  ctx.moveTo(-10, -48);
-  ctx.bezierCurveTo(-19, -71, -3, -75, 2, -52);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // 핑크 후드 본체
-  ctx.beginPath();
-  ctx.arc(0, -39, 16, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // 하얀 얼굴
+  // 2. 폴짝 뛰는 다리 두 개 (점프할 때 살짝 들리며 앞으로 뻗음)
+  const legLift = isJumping ? -3.5 : 0;
   ctx.fillStyle = whiteSkin;
-  ctx.lineWidth = 1.9;
   ctx.beginPath();
-  ctx.ellipse(1.2, -37.5, 12.8, 10.8, 0, 0, Math.PI * 2);
+  ctx.ellipse(-3, -7 + legLift, 5.2, 7.5, -0.22, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // 세로 눈 + 노란 코 + 미소
+  ctx.beginPath();
+  ctx.ellipse(4.5, -5.5 + legLift * 0.7, 5.2, 7.2, 0.25, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 3. 둥글고 앙증맞은 흰 몸통
+  ctx.fillStyle = whiteSkin;
+  ctx.beginPath();
+  ctx.ellipse(0, -18, 12, 10.5, -0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 4. 목 아래 핑크 케이프(카라)
+  ctx.fillStyle = pinkHood;
+  ctx.beginPath();
+  ctx.moveTo(-11, -26);
+  ctx.lineTo(-15, -20);
+  ctx.lineTo(-5, -22.5);
+  ctx.lineTo(5, -22.5);
+  ctx.lineTo(13, -21);
+  ctx.lineTo(10, -26);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 5. 나란히 뒤로 뻗는 토끼 귀 2개 (위/뒤 귀 + 아래/앞 귀)
+  ctx.fillStyle = pinkHood;
+  ctx.lineWidth = 2.1;
+
+  // 윗귀 (살짝 위쪽으로 뻗음)
+  ctx.beginPath();
+  ctx.moveTo(4, -46);
+  ctx.bezierCurveTo(16, -61, 29, -62, 27, -52);
+  ctx.bezierCurveTo(25, -45, 13, -43, 5, -41);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 아랫귀 (나란히 뒤로 뻗음)
+  ctx.beginPath();
+  ctx.moveTo(6, -42);
+  ctx.bezierCurveTo(18, -48, 30, -47, 28, -38);
+  ctx.bezierCurveTo(25, -32, 14, -33, 6, -35);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 6. 풍성한 핑크 후드(두건)
+  ctx.fillStyle = pinkHood;
+  ctx.beginPath();
+  ctx.arc(-1, -37, 15.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 7. 옆모습 하얀 얼굴
+  ctx.fillStyle = whiteSkin;
+  ctx.lineWidth = 2.0;
+  ctx.beginPath();
+  ctx.ellipse(2.5, -36, 12.2, 11.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 후드가 얼굴 뒤쪽을 감싸는 라인 정리
+  ctx.fillStyle = pinkHood;
+  ctx.beginPath();
+  ctx.arc(-2, -37, 15.5, Math.PI * 0.62, Math.PI * 1.45);
+  ctx.fill();
+  ctx.stroke();
+
+  // 다시 흰 얼굴 중심부 깔끔하게
+  ctx.fillStyle = whiteSkin;
+  ctx.beginPath();
+  ctx.ellipse(3.2, -36, 11.4, 10.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 눈 (세로 타원)
   ctx.fillStyle = outline;
   ctx.beginPath();
-  ctx.ellipse(-4.5, -38.5, 2.0, 4.0, 0, 0, Math.PI * 2);
-  ctx.ellipse(7.8, -38.5, 2.0, 4.0, 0, 0, Math.PI * 2);
+  ctx.ellipse(5.5, -37.5, 2.2, 4.4, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  // 코 (노란 포인트)
   ctx.fillStyle = "#ffd32a";
+  ctx.strokeStyle = outline;
   ctx.lineWidth = 1.4;
   ctx.beginPath();
-  ctx.ellipse(1.8, -35.2, 2.6, 1.9, 0, 0, Math.PI * 2);
+  ctx.ellipse(14.2, -35.2, 2.3, 1.8, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  ctx.lineWidth = 1.5;
+  // 앙증맞은 입 ('o' 또는 살짝 벌린 귀여운 표정)
+  ctx.fillStyle = outline;
   ctx.beginPath();
-  ctx.arc(1.8, -32.3, 2.4, 0.15 * Math.PI, 0.85 * Math.PI);
-  ctx.stroke();
+  ctx.ellipse(11.8, -31.5, 1.5, 1.9, 0, 0, Math.PI * 2);
+  ctx.fill();
 
-  // 손 흔들림
-  const armSwing = hopOffset > 0 ? -3 : 0;
+  // 8. 두 팔을 앞쪽/뺨 쪽으로 모아 폴짝 뛰는 포즈
+  const handY = isJumping ? -26 : -24;
   ctx.fillStyle = whiteSkin;
-  ctx.lineWidth = 1.9;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 2.0;
+
+  // 안쪽 팔
   ctx.beginPath();
-  ctx.arc(-11, -23.5 + armSwing, 4.2, 0, Math.PI * 2);
+  ctx.roundRect(4, handY - 4, 7.5, 12, 4);
   ctx.fill();
   ctx.stroke();
 
-  // 꽃 장식 (귀 2 아래쪽 포인트)
-  drawFlower(-8.5, -49, 5.5);
+  // 바깥쪽 손/팔 (귀여운 손가락 포인트)
+  ctx.beginPath();
+  ctx.roundRect(7.5, handY - 2, 8.5, 12.5, 4.2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 9. 앞쪽 꽃 장식
+  drawFlower(6.5, -48.5, 5.6);
+
+  ctx.restore();
+}
+
+function drawCharacter(px, py, dir, hopOffset) {
+  if (CHAR_CONFIG.hat === "mymelo_hood") {
+    ctx.save();
+    if (dir === -1) {
+      ctx.translate(px * 2, 0);
+      ctx.scale(-1, 1);
+    }
+    drawMyMelodyCharacter(px, py, hopOffset);
+    ctx.restore();
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(px, py - hopOffset);
+  if (dir === -1) ctx.scale(-1, 1);
+
+  if (CHAR_CONFIG.hat === "dino_spikes") {
+    ctx.fillStyle = CHAR_CONFIG.head;
+    ctx.beginPath();
+    ctx.moveTo(-10, -8);
+    ctx.lineTo(-24, -4);
+    ctx.lineTo(-10, -1);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.fillStyle = CHAR_CONFIG.body;
+  ctx.beginPath();
+  ctx.roundRect(-12, -32, 24, 32, 8);
+  ctx.fill();
+
+  ctx.fillStyle = CHAR_CONFIG.head;
+  ctx.beginPath();
+  ctx.arc(0, -38, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = CHAR_CONFIG.eye;
+  ctx.beginPath();
+  ctx.arc(5, -40, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (CHAR_CONFIG.hat === "tiara_crown") {
+    ctx.fillStyle = "rgba(255, 107, 129, 0.45)";
+    ctx.beginPath();
+    ctx.arc(2, -36, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = CHAR_CONFIG.band;
+  ctx.fillRect(-12, -45, 24, 4);
+
+  if (CHAR_CONFIG.hat === "dino_spikes") {
+    ctx.fillStyle = CHAR_CONFIG.band;
+    for (let i = 0; i < 3; i++) {
+      const sy = -46 + i * 11;
+      ctx.beginPath();
+      ctx.moveTo(-11, sy);
+      ctx.lineTo(-18, sy + 4);
+      ctx.lineTo(-11, sy + 8);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (CHAR_CONFIG.hat === "tiara_crown") {
+    ctx.fillStyle = "#ffd32a";
+    ctx.beginPath();
+    ctx.moveTo(-10, -49);
+    ctx.lineTo(-8, -59);
+    ctx.lineTo(-2, -53);
+    ctx.lineTo(0, -61);
+    ctx.lineTo(2, -53);
+    ctx.lineTo(8, -59);
+    ctx.lineTo(10, -49);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#ff4757";
+    ctx.beginPath();
+    ctx.arc(0, -52, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (CHAR_CONFIG.hat === "visor") {
+    ctx.fillStyle = "#00f5d4";
+    ctx.fillRect(0, -43, 12, 5);
+  } else if (CHAR_CONFIG.hat === "hood") {
+    ctx.strokeStyle = CHAR_CONFIG.band;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, -38, 13.5, Math.PI * 0.85, Math.PI * 2.15);
+    ctx.stroke();
+  }
 
   ctx.restore();
 }
