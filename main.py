@@ -7,6 +7,8 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="무한의 계단 - Python Web", page_icon="🪜", layout="centered")
 
 DB_PATH = Path(__file__).parent / "ranking.db"
+FRONTEND_DIR = Path(__file__).parent / "_game_frontend"
+FRONTEND_DIR.mkdir(exist_ok=True)
 
 CHARACTERS = {
     "red_runner": {
@@ -91,40 +93,9 @@ def get_top_rankings(limit: int = 10):
         return cur.fetchall()
 
 
-init_db()
-
-# 혹시 남아 있을 수 있는 이전 쿼리 파라미터는 깔끔히 정리
-if st.query_params:
-    st.query_params.clear()
-
-if "flash_message" in st.session_state and st.session_state["flash_message"]:
-    st.success(st.session_state.pop("flash_message"))
-
-st.title("🪜 무한의 계단 (Python Web Edition)")
-st.caption("조작법: [↑ / Space / D / 오르기 버튼] 등반 | [← / Shift / A / 방향전환 버튼] 방향 전환 + 등반")
-
-col1, col2 = st.columns([1, 1.3])
-with col1:
-    nickname = st.text_input(
-        "랭킹 닉네임",
-        value=st.session_state.get("player_nickname", "플레이어"),
-        max_chars=16,
-    )
-    st.session_state["player_nickname"] = nickname
-
-with col2:
-    char_keys = list(CHARACTERS.keys())
-    selected_char_key = st.selectbox(
-        "캐릭터 선택",
-        options=char_keys,
-        format_func=lambda k: f"{CHARACTERS[k]['name']} — {CHARACTERS[k]['desc']}",
-    )
-
-char_data = CHARACTERS[selected_char_key]
-hat_js = f'"{char_data["hat"]}"' if char_data["hat"] else "null"
-
-game_html_template = """
-<!DOCTYPE html>
+def build_frontend_html(char_data: dict) -> str:
+    hat_js = f'"{char_data["hat"]}"' if char_data["hat"] else "null"
+    template = """<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -259,8 +230,8 @@ game_html_template = """
   #overlay h2 { font-size: 30px; margin-bottom: 8px; color: #ffdd59; }
   #overlay p { font-size: 15px; color: #d2dae2; margin-bottom: 18px; line-height: 1.55; }
   .hint-box {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(11, 232, 129, 0.12);
+    border: 1px solid rgba(11, 232, 129, 0.35);
     border-radius: 10px;
     padding: 10px 14px;
     font-size: 13px;
@@ -309,13 +280,42 @@ game_html_template = """
       발을 헛디디거나 시간이 다 되면 종료됩니다.
     </p>
     <div class="hint-box" id="register-hint">
-      기록을 남기려면 아래 <strong>랭킹 등록</strong> 영역에 점수를 넣고 등록 버튼을 눌러주세요!
+      실제 게임 점수가 전달되었습니다!<br>아래 <strong>랭킹 등록</strong> 버튼을 눌러 기록을 남기세요.
     </div>
     <button id="start-btn">게임 시작 (Space)</button>
   </div>
 </div>
 
 <script>
+// Streamlit Custom Component Protocol Bridge
+const Streamlit = {
+  sendMessageToHost(type, data) {
+    window.parent.postMessage({
+      isStreamlitMessage: true,
+      type: type,
+      ...data
+    }, "*");
+  },
+  setComponentReady() {
+    this.sendMessageToHost("streamlit:componentReady", { apiVersion: 1 });
+  },
+  setFrameHeight(height) {
+    this.sendMessageToHost("streamlit:setFrameHeight", { height: height });
+  },
+  setComponentValue(value) {
+    this.sendMessageToHost("streamlit:setComponentValue", {
+      value: value,
+      dataType: "json"
+    });
+  }
+};
+
+window.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "streamlit:render") {
+    Streamlit.setFrameHeight(620);
+  }
+});
+
 const CHAR_CONFIG = {
   name: "__CHAR_NAME__",
   body: "__CHAR_BODY__",
@@ -568,7 +568,19 @@ function triggerGameOver(reason) {
 
   overlayTitle.innerText = "GAME OVER";
   overlayDesc.innerHTML = `${reason}<br>최종 기록: <strong style="color:#0be881; font-size:24px;">${score}점</strong>`;
-  registerHint.style.display = score > 0 ? "block" : "none";
+
+  if (score > 0) {
+    registerHint.style.display = "block";
+    const runId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    Streamlit.setComponentValue({
+      runId: runId,
+      score: score,
+      characterName: CHAR_CONFIG.name
+    });
+  } else {
+    registerHint.style.display = "none";
+  }
+
   startBtn.innerText = "다시 도전 (Space)";
   overlay.style.display = "flex";
 }
@@ -754,40 +766,89 @@ document.getElementById("btn-turn").addEventListener("pointerdown", (e) => {
 });
 startBtn.addEventListener("click", initGame);
 
+Streamlit.setComponentReady();
+Streamlit.setFrameHeight(620);
 requestAnimationFrame(gameLoop);
 </script>
 </body>
 </html>
 """
+    return (
+        template.replace("__CHAR_NAME__", char_data["name"])
+        .replace("__CHAR_BODY__", char_data["body"])
+        .replace("__CHAR_HEAD__", char_data["head"])
+        .replace("__CHAR_BAND__", char_data["band"])
+        .replace("__CHAR_EYE__", char_data["eye"])
+        .replace("__CHAR_HAT__", hat_js)
+    )
 
-game_html = (
-    game_html_template.replace("__CHAR_NAME__", char_data["name"])
-    .replace("__CHAR_BODY__", char_data["body"])
-    .replace("__CHAR_HEAD__", char_data["head"])
-    .replace("__CHAR_BAND__", char_data["band"])
-    .replace("__CHAR_EYE__", char_data["eye"])
-    .replace("__CHAR_HAT__", hat_js)
+
+init_db()
+
+if "flash_message" in st.session_state and st.session_state["flash_message"]:
+    st.success(st.session_state.pop("flash_message"))
+
+st.title("🪜 무한의 계단 (Python Web Edition)")
+st.caption("조작법: [↑ / Space / D / 오르기 버튼] 등반 | [← / Shift / A / 방향전환 버튼] 방향 전환 + 등반")
+
+col1, col2 = st.columns([1, 1.3])
+with col1:
+    nickname = st.text_input(
+        "랭킹 닉네임",
+        value=st.session_state.get("player_nickname", "플레이어"),
+        max_chars=16,
+    )
+    st.session_state["player_nickname"] = nickname
+
+with col2:
+    char_keys = list(CHARACTERS.keys())
+    selected_char_key = st.selectbox(
+        "캐릭터 선택",
+        options=char_keys,
+        format_func=lambda k: f"{CHARACTERS[k]['name']} — {CHARACTERS[k]['desc']}",
+    )
+
+char_data = CHARACTERS[selected_char_key]
+index_html_path = FRONTEND_DIR / "index.html"
+index_html_path.write_text(build_frontend_html(char_data), encoding="utf-8")
+
+infinite_stairs_component = components.declare_component(
+    "infinite_stairs_game",
+    path=str(FRONTEND_DIR),
 )
 
-components.html(game_html, height=620)
+component_value = infinite_stairs_component(
+    characterName=char_data["name"],
+    key=f"game_comp_{selected_char_key}",
+    default=None,
+)
 
-# 선택형 랭킹 등록 (버튼 클릭 시 DB 저장 후 st.rerun()으로 화면 1회 새로고침)
+if isinstance(component_value, dict):
+    run_id = component_value.get("runId")
+    reported_score = component_value.get("score")
+    reported_char = component_value.get("characterName", char_data["name"])
+    if run_id and run_id != st.session_state.get("last_run_id"):
+        st.session_state["last_run_id"] = run_id
+        if isinstance(reported_score, (int, float)) and int(reported_score) > 0:
+            st.session_state["pending_score"] = int(reported_score)
+            st.session_state["pending_char"] = str(reported_char)
+
+pending_score = st.session_state.get("pending_score")
+pending_char = st.session_state.get("pending_char", char_data["name"])
+
 with st.container(border=True):
-    st.markdown("### 📝 랭킹 등록 (선택)")
-    st.caption("남기고 싶은 기록이 있을 때만 점수를 입력하고 아래 버튼을 누르세요. 등록 즉시 화면이 새로고침됩니다.")
-    reg_col1, reg_col2 = st.columns([1, 1.4])
-    with reg_col1:
-        reg_score = st.number_input("등록할 점수", min_value=1, max_value=99999, value=10, step=1)
-    with reg_col2:
-        st.write("")
-        st.write("")
-        if st.button("🏆 랭킹 등록 & 새로고침", type="primary", use_container_width=True):
-            saved = save_score(nickname, int(reg_score), char_data["name"])
-            if saved:
+    st.markdown("### 📝 실전 기록 랭킹 등록")
+    if pending_score and pending_score > 0:
+        st.info(f"방금 종료된 게임 기록: **{pending_score}점** ({pending_char})")
+        if st.button(f"🏆 {pending_score}점 랭킹 등록 & 화면 새로고침", type="primary", use_container_width=True):
+            if save_score(nickname, pending_score, pending_char):
+                st.session_state["pending_score"] = None
                 st.session_state["flash_message"] = (
-                    f"🏆 '{(nickname or '익명').strip()[:16] or '익명'}' 님의 {int(reg_score)}점 기록이 등록되었습니다!"
+                    f"🏆 '{(nickname or '익명').strip()[:16] or '익명'}' 님의 {pending_score}점 기록이 등록되었습니다!"
                 )
             st.rerun()
+    else:
+        st.caption("게임을 플레이하고 게임 오버가 되면 실제 점수가 자동으로 전달되며, 이 자리에서 등록 버튼을 누를 수 있습니다.")
 
 st.divider()
 st.subheader("🏆 실시간 랭킹 보드 (TOP 10)")
