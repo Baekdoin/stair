@@ -11,6 +11,33 @@ FRONTEND_DIR = Path(__file__).parent / "_game_frontend"
 FRONTEND_DIR.mkdir(exist_ok=True)
 
 CHARACTERS = {
+    "mymelo_siyeoni": {
+        "name": "마이멜로디 시연이",
+        "desc": "연핑크 토끼 후드와 리본이 포인트인 시연이 캐릭터",
+        "body": "#ff9ff3",
+        "head": "#ffeaa7",
+        "band": "#ff6b81",
+        "eye": "#2d3436",
+        "hat": "mymelo_hood",
+    },
+    "trex_siu": {
+        "name": "티라노사우르스 시우",
+        "desc": "씩씩한 초록 공룡 등지느러미가 돋보이는 시우 캐릭터",
+        "body": "#2ecc71",
+        "head": "#27ae60",
+        "band": "#f1c40f",
+        "eye": "#1e272e",
+        "hat": "dino_spikes",
+    },
+    "princess_yua": {
+        "name": "공주 유아",
+        "desc": "반짝이는 왕관과 로즈핑크 망토를 두른 유아 공주님",
+        "body": "#ff7979",
+        "head": "#ffeaa7",
+        "band": "#f9ca24",
+        "eye": "#2d3436",
+        "hat": "tiara_crown",
+    },
     "red_runner": {
         "name": "열혈 러너",
         "desc": "기본기 탄탄한 빨간 머리띠 주자",
@@ -28,15 +55,6 @@ CHARACTERS = {
         "band": "#55efc4",
         "eye": "#0984e3",
         "hat": "visor",
-    },
-    "royal_knight": {
-        "name": "황금 기사",
-        "desc": "보라 망토와 왕관을 쓴 등반가",
-        "body": "#6c5ce7",
-        "head": "#ffeaa7",
-        "band": "#fdcb6e",
-        "eye": "#2d3436",
-        "hat": "crown",
     },
     "ninja_shadow": {
         "name": "그림자 닌자",
@@ -287,7 +305,6 @@ def build_frontend_html(char_data: dict) -> str:
 </div>
 
 <script>
-// Streamlit Custom Component Protocol Bridge
 const Streamlit = {
   sendMessageToHost(type, data) {
     window.parent.postMessage({
@@ -627,33 +644,107 @@ function drawCharacter(px, py, dir, hopOffset) {
   ctx.translate(px, py - hopOffset);
   if (dir === -1) ctx.scale(-1, 1);
 
+  // 공룡 꼬리 (티라노사우르스 시우 전용)
+  if (CHAR_CONFIG.hat === "dino_spikes") {
+    ctx.fillStyle = CHAR_CONFIG.head;
+    ctx.beginPath();
+    ctx.moveTo(-10, -8);
+    ctx.lineTo(-24, -4);
+    ctx.lineTo(-10, -1);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 몸통
   ctx.fillStyle = CHAR_CONFIG.body;
   ctx.beginPath();
   ctx.roundRect(-12, -32, 24, 32, 8);
   ctx.fill();
 
+  // 머리
   ctx.fillStyle = CHAR_CONFIG.head;
   ctx.beginPath();
   ctx.arc(0, -38, 12, 0, Math.PI * 2);
   ctx.fill();
 
+  // 눈
   ctx.fillStyle = CHAR_CONFIG.eye;
   ctx.beginPath();
   ctx.arc(5, -40, 2.5, 0, Math.PI * 2);
   ctx.fill();
 
+  // 볼터치 (마이멜로디 / 공주 캐릭터 포인트)
+  if (CHAR_CONFIG.hat === "mymelo_hood" || CHAR_CONFIG.hat === "tiara_crown") {
+    ctx.fillStyle = "rgba(255, 107, 129, 0.45)";
+    ctx.beginPath();
+    ctx.arc(2, -36, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 머리띠 / 장식
   ctx.fillStyle = CHAR_CONFIG.band;
   ctx.fillRect(-12, -45, 24, 4);
 
-  if (CHAR_CONFIG.hat === "crown") {
+  if (CHAR_CONFIG.hat === "mymelo_hood") {
+    // 마이멜로디 시연이: 연핑크 후드 & 토끼 귀 & 오른쪽 리본
+    ctx.strokeStyle = "#ff9ff3";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(0, -38, 13.5, Math.PI * 0.75, Math.PI * 2.25);
+    ctx.stroke();
+
+    // 왼쪽 토끼 귀
+    ctx.fillStyle = "#ff9ff3";
+    ctx.beginPath();
+    ctx.ellipse(-6, -56, 4.2, 9.5, -0.18, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 오른쪽 토끼 귀
+    ctx.beginPath();
+    ctx.ellipse(5, -56, 4.2, 9.5, 0.18, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 귀 안쪽 핑크
+    ctx.fillStyle = "#ffc8dd";
+    ctx.beginPath();
+    ctx.ellipse(-6, -56, 1.8, 5.5, -0.18, 0, Math.PI * 2);
+    ctx.ellipse(5, -56, 1.8, 5.5, 0.18, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 포인트 리본
+    ctx.fillStyle = "#ff4757";
+    ctx.beginPath();
+    ctx.arc(8, -48, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (CHAR_CONFIG.hat === "dino_spikes") {
+    // 티라노사우르스 시우: 머리~등 톱니 스파이크
+    ctx.fillStyle = CHAR_CONFIG.band;
+    for (let i = 0; i < 3; i++) {
+      const sy = -46 + i * 11;
+      ctx.beginPath();
+      ctx.moveTo(-11, sy);
+      ctx.lineTo(-18, sy + 4);
+      ctx.lineTo(-11, sy + 8);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (CHAR_CONFIG.hat === "tiara_crown") {
+    // 공주 유아: 황금 티아라 왕관 & 보석 포인트
     ctx.fillStyle = "#ffd32a";
     ctx.beginPath();
     ctx.moveTo(-10, -49);
-    ctx.lineTo(-7, -58);
-    ctx.lineTo(0, -52);
-    ctx.lineTo(7, -58);
+    ctx.lineTo(-8, -59);
+    ctx.lineTo(-2, -53);
+    ctx.lineTo(0, -61);
+    ctx.lineTo(2, -53);
+    ctx.lineTo(8, -59);
     ctx.lineTo(10, -49);
     ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#ff4757";
+    ctx.beginPath();
+    ctx.arc(0, -52, 2.2, 0, Math.PI * 2);
     ctx.fill();
   } else if (CHAR_CONFIG.hat === "visor") {
     ctx.fillStyle = "#00f5d4";
@@ -788,7 +879,7 @@ init_db()
 if "flash_message" in st.session_state and st.session_state["flash_message"]:
     st.success(st.session_state.pop("flash_message"))
 
-st.title("🪜 걷어차지 말아줘 사다리 ")
+st.title("🪜 무한의 계단 (Python Web Edition)")
 st.caption("조작법: [↑ / Space / D / 오르기 버튼] 등반 | [← / Shift / A / 방향전환 버튼] 방향 전환 + 등반")
 
 col1, col2 = st.columns([1, 1.3])
