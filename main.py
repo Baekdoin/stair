@@ -92,29 +92,38 @@ def get_top_rankings(limit: int = 10):
 
 init_db()
 
-if "last_saved_token" not in st.session_state:
-    st.session_state.last_saved_token = None
-
+# 랭킹 등록 요청 처리 -> 저장 후 쿼리 정리 + 1회 리런
 qp = st.query_params
-if "submit_score" in qp and "token" in qp:
+if "register_score" in qp and "token" in qp:
     token = qp["token"]
-    if token != st.session_state.last_saved_token:
+    if token != st.session_state.get("processed_register_token"):
         try:
-            submitted_score = int(qp["submit_score"])
-            submitted_char = qp.get("char", "열혈 러너")
+            reg_score = int(qp["register_score"])
+            reg_char = qp.get("char", "열혈 러너")
             nick = st.session_state.get("player_nickname", "플레이어")
-            save_score(nick, submitted_score, submitted_char)
-            st.session_state.last_saved_token = token
+            if reg_score > 0:
+                save_score(nick, reg_score, reg_char)
+                st.session_state["flash_message"] = f"🏆 '{nick}' 님의 {reg_score}점 기록이 등록되었습니다!"
+            st.session_state["processed_register_token"] = token
         except ValueError:
             pass
+    st.query_params.clear()
+    st.rerun()
+
+if "flash_message" in st.session_state and st.session_state["flash_message"]:
+    st.success(st.session_state.pop("flash_message"))
 
 st.title("🪜 무한의 계단 (Python Web Edition)")
 st.caption("조작법: [↑ / Space / D / 오르기 버튼] 등반 | [← / Shift / A / 방향전환 버튼] 방향 전환 + 등반")
 
 col1, col2 = st.columns([1, 1.3])
 with col1:
-    nickname = st.text_input("랭킹 닉네임", value=st.session_state.get("player_nickname", "플레이어"), max_chars=16)
-    st.session_state.player_nickname = nickname
+    nickname = st.text_input(
+        "랭킹 닉네임",
+        value=st.session_state.get("player_nickname", "플레이어"),
+        max_chars=16,
+    )
+    st.session_state["player_nickname"] = nickname
 
 with col2:
     char_keys = list(CHARACTERS.keys())
@@ -127,14 +136,14 @@ with col2:
 char_data = CHARACTERS[selected_char_key]
 hat_js = f'"{char_data["hat"]}"' if char_data["hat"] else "null"
 
-game_html = f"""
+game_html_template = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <style>
-  * {{ box-sizing: border-box; user-select: none; }}
-  body {{
+  * { box-sizing: border-box; user-select: none; }
+  body {
     margin: 0;
     padding: 0;
     background: transparent;
@@ -144,8 +153,8 @@ game_html = f"""
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
     color: white;
     overflow: hidden;
-  }}
-  #game-container {{
+  }
+  #game-container {
     position: relative;
     width: 400px;
     height: 600px;
@@ -153,12 +162,12 @@ game_html = f"""
     overflow: hidden;
     box-shadow: 0 12px 32px rgba(0,0,0,0.45);
     border: 3px solid #3b3e5b;
-  }}
-  canvas {{
+  }
+  canvas {
     display: block;
     background: linear-gradient(180deg, #1e2749 0%, #273469 100%);
-  }}
-  #ui-layer {{
+  }
+  #ui-layer {
     position: absolute;
     top: 14px;
     left: 0;
@@ -168,8 +177,8 @@ game_html = f"""
     flex-direction: column;
     align-items: center;
     pointer-events: none;
-  }}
-  #top-meta {{
+  }
+  #top-meta {
     width: 100%;
     display: flex;
     justify-content: space-between;
@@ -177,21 +186,21 @@ game_html = f"""
     font-size: 13px;
     color: #b8c4ff;
     font-weight: 700;
-  }}
-  #score {{
+  }
+  #score {
     font-size: 46px;
     font-weight: 900;
     text-shadow: 0 4px 8px rgba(0,0,0,0.4);
     margin: 2px 0;
-  }}
-  #floating-badge {{
+  }
+  #floating-badge {
     height: 22px;
     font-size: 14px;
     font-weight: 800;
     color: #ffd32a;
     text-shadow: 0 2px 6px rgba(0,0,0,0.6);
-  }}
-  #timer-bar-bg {{
+  }
+  #timer-bar-bg {
     width: 88%;
     height: 13px;
     background: rgba(0,0,0,0.45);
@@ -199,14 +208,14 @@ game_html = f"""
     overflow: hidden;
     margin-top: 6px;
     border: 2px solid rgba(255,255,255,0.2);
-  }}
-  #timer-bar {{
+  }
+  #timer-bar {
     width: 100%;
     height: 100%;
     background: linear-gradient(90deg, #ff4d4d, #ffcc00, #00e676);
     transition: width 0.05s linear;
-  }}
-  #sound-toggle {{
+  }
+  #sound-toggle {
     position: absolute;
     top: 12px;
     right: 12px;
@@ -219,8 +228,8 @@ game_html = f"""
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
-  }}
-  #controls {{
+  }
+  #controls {
     position: absolute;
     bottom: 18px;
     width: 100%;
@@ -228,8 +237,8 @@ game_html = f"""
     display: flex;
     justify-content: space-between;
     gap: 12px;
-  }}
-  .btn {{
+  }
+  .btn {
     flex: 1;
     height: 68px;
     border: none;
@@ -240,18 +249,18 @@ game_html = f"""
     cursor: pointer;
     box-shadow: 0 6px 0 rgba(0,0,0,0.3);
     transition: transform 0.05s;
-  }}
-  .btn:active {{
+  }
+  .btn:active {
     transform: translateY(4px);
     box-shadow: 0 2px 0 rgba(0,0,0,0.3);
-  }}
-  #btn-turn {{ background: #ff5e57; }}
-  #btn-climb {{ background: #0be881; color: #1e272e; }}
+  }
+  #btn-turn { background: #ff5e57; }
+  #btn-climb { background: #0be881; color: #1e272e; }
 
-  #overlay {{
+  #overlay {
     position: absolute;
     inset: 0;
-    background: rgba(15, 17, 26, 0.88);
+    background: rgba(15, 17, 26, 0.9);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -259,12 +268,35 @@ game_html = f"""
     text-align: center;
     padding: 20px;
     z-index: 5;
-  }}
-  #overlay h2 {{ font-size: 30px; margin-bottom: 8px; color: #ffdd59; }}
-  #overlay p {{ font-size: 15px; color: #d2dae2; margin-bottom: 20px; line-height: 1.55; }}
-  #start-btn {{
-    padding: 13px 32px;
-    font-size: 19px;
+  }
+  #overlay h2 { font-size: 30px; margin-bottom: 8px; color: #ffdd59; }
+  #overlay p { font-size: 15px; color: #d2dae2; margin-bottom: 20px; line-height: 1.55; }
+  .overlay-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 250px;
+  }
+  #register-btn {
+    padding: 12px 24px;
+    font-size: 17px;
+    font-weight: 800;
+    border: none;
+    border-radius: 12px;
+    background: #0be881;
+    color: #1e272e;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #059c56;
+    display: none;
+  }
+  #register-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  #start-btn {
+    padding: 13px 28px;
+    font-size: 18px;
     font-weight: 800;
     border: none;
     border-radius: 12px;
@@ -272,7 +304,7 @@ game_html = f"""
     color: #1e272e;
     cursor: pointer;
     box-shadow: 0 5px 0 #cca81d;
-  }}
+  }
 </style>
 </head>
 <body>
@@ -284,7 +316,7 @@ game_html = f"""
   <div id="ui-layer">
     <div id="top-meta">
       <span id="best">BEST: 0</span>
-      <span id="char-label">캐릭터: {char_data["name"]}</span>
+      <span id="char-label">캐릭터: __CHAR_NAME__</span>
     </div>
     <div id="score">0</div>
     <div id="floating-badge"></div>
@@ -302,35 +334,38 @@ game_html = f"""
       일반 계단(<strong>+1점</strong>)과 <span style="color:#ffd32a; font-weight:700;">황금 계단(+3점 & 시간 보너스)</span>을 공략하세요!<br>
       발을 헛디디거나 시간이 다 되면 종료됩니다.
     </p>
-    <button id="start-btn">게임 시작 (Space)</button>
+    <div class="overlay-actions">
+      <button id="register-btn">🏆 랭킹 등록 & 새로고침</button>
+      <button id="start-btn">게임 시작 (Space)</button>
+    </div>
   </div>
 </div>
 
 <script>
-const CHAR_CONFIG = {{
-  name: "{char_data["name"]}",
-  body: "{char_data["body"]}",
-  head: "{char_data["head"]}",
-  band: "{char_data["band"]}",
-  eye: "{char_data["eye"]}",
-  hat: {hat_js}
-}};
+const CHAR_CONFIG = {
+  name: "__CHAR_NAME__",
+  body: "__CHAR_BODY__",
+  head: "__CHAR_HEAD__",
+  band: "__CHAR_BAND__",
+  eye: "__CHAR_EYE__",
+  hat: __CHAR_HAT__
+};
 
-class SoundFX {{
-  constructor() {{
+class SoundFX {
+  constructor() {
     this.ctx = null;
     this.enabled = true;
-  }}
-  ensureContext() {{
-    if (!this.ctx) {{
+  }
+  ensureContext() {
+    if (!this.ctx) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) this.ctx = new AudioCtx();
-    }}
-    if (this.ctx && this.ctx.state === "suspended") {{
+    }
+    if (this.ctx && this.ctx.state === "suspended") {
       this.ctx.resume();
-    }}
-  }}
-  playTone(freq, endFreq, duration, type = "triangle", gainVal = 0.14, delay = 0) {{
+    }
+  }
+  playTone(freq, endFreq, duration, type = "triangle", gainVal = 0.14, delay = 0) {
     if (!this.enabled) return;
     this.ensureContext();
     if (!this.ctx) return;
@@ -340,9 +375,9 @@ class SoundFX {{
     const gain = this.ctx.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(freq, now);
-    if (endFreq) {{
+    if (endFreq) {
       osc.frequency.exponentialRampToValueAtTime(Math.max(40, endFreq), now + duration);
-    }}
+    }
     gain.gain.setValueAtTime(gainVal, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
@@ -350,32 +385,32 @@ class SoundFX {{
     gain.connect(this.ctx.destination);
     osc.start(now);
     osc.stop(now + duration);
-  }}
-  step(combo) {{
+  }
+  step(combo) {
     const base = 340 + Math.min(350, (combo % 25) * 14);
     this.playTone(base, base * 1.25, 0.065, "triangle", 0.12);
-  }}
-  turn() {{
+  }
+  turn() {
     this.playTone(260, 460, 0.075, "sine", 0.12);
-  }}
-  gold() {{
+  }
+  gold() {
     this.playTone(660, 880, 0.09, "sine", 0.16, 0);
     this.playTone(880, 1320, 0.14, "triangle", 0.16, 0.07);
-  }}
-  gameOver() {{
+  }
+  gameOver() {
     this.playTone(300, 95, 0.35, "sawtooth", 0.15, 0);
     this.playTone(180, 65, 0.4, "square", 0.1, 0.12);
-  }}
-}}
+  }
+}
 
 const sfx = new SoundFX();
 const soundBtn = document.getElementById("sound-toggle");
-soundBtn.addEventListener("click", (e) => {{
+soundBtn.addEventListener("click", (e) => {
   e.stopPropagation();
   sfx.enabled = !sfx.enabled;
   soundBtn.innerText = sfx.enabled ? "🔊 SFX ON" : "🔇 SFX OFF";
   if (sfx.enabled) sfx.step(1);
-}});
+});
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -387,6 +422,7 @@ const timerBar = document.getElementById("timer-bar");
 const overlay = document.getElementById("overlay");
 const overlayTitle = document.getElementById("overlay-title");
 const overlayDesc = document.getElementById("overlay-desc");
+const registerBtn = document.getElementById("register-btn");
 const startBtn = document.getElementById("start-btn");
 
 const STEP_W = 55;
@@ -394,7 +430,7 @@ const STEP_H = 26;
 const STEP_ANIM_DURATION = 0.055;
 
 let stairs = [];
-let player = {{
+let player = {
   x: 0,
   y: 0,
   dir: 1,
@@ -403,9 +439,11 @@ let player = {{
   toX: 0,
   toY: 0,
   animT: 1.0
-}};
-let camera = {{ x: 0, y: 0 }};
+};
+let camera = { x: 0, y: 0 };
 let score = 0;
+let lastFinishedScore = 0;
+let hasRegisteredCurrentRun = false;
 let bestScore = Number(localStorage.getItem("infinite_stairs_best") || 0);
 let timeLeft = 100;
 let isPlaying = false;
@@ -414,43 +452,43 @@ let lastTime = 0;
 let particles = [];
 let badgeTimer = 0;
 
-bestEl.innerText = `BEST: ${{bestScore}}`;
+bestEl.innerText = `BEST: ${bestScore}`;
 
-function showBadge(text, color = "#ffd32a") {{
+function showBadge(text, color = "#ffd32a") {
   badgeEl.innerText = text;
   badgeEl.style.color = color;
   badgeTimer = 0.85;
-}}
+}
 
-function createStair(x, y, idx) {{
+function createStair(x, y, idx) {
   const isGold = idx > 2 && Math.random() < 0.14;
-  return {{ x, y, isGold }};
-}}
+  return { x, y, isGold };
+}
 
-function getVisualPlayerPos() {{
+function getVisualPlayerPos() {
   const prevVisX = player.fromX + (player.toX - player.fromX) * Math.min(1, player.animT);
   const prevVisY = player.fromY + (player.toY - player.fromY) * Math.min(1, player.animT);
-  return {{ x: prevVisX, y: prevVisY }};
-}}
+  return { x: prevVisX, y: prevVisY };
+}
 
-function initGame() {{
+function initGame() {
   stairs = [];
   let curX = 0;
   let curY = 0;
   let dir = 1;
 
-  stairs.push({{ x: 0, y: 0, isGold: false }});
+  stairs.push({ x: 0, y: 0, isGold: false });
 
-  for (let i = 1; i < 100; i++) {{
-    if (i > 1 && Math.random() < 0.35) {{
+  for (let i = 1; i < 100; i++) {
+    if (i > 1 && Math.random() < 0.35) {
       dir *= -1;
-    }}
+    }
     curX += dir;
     curY += 1;
     stairs.push(createStair(curX, curY, i));
-  }}
+  }
 
-  player = {{
+  player = {
     x: 0,
     y: 0,
     dir: 1,
@@ -459,47 +497,53 @@ function initGame() {{
     toX: 0,
     toY: 0,
     animT: 1.0
-  }};
-  camera = {{ x: 0, y: 0 }};
+  };
+  camera = { x: 0, y: 0 };
   score = 0;
+  lastFinishedScore = 0;
+  hasRegisteredCurrentRun = false;
   timeLeft = 100;
   isPlaying = true;
   isGameOver = false;
   particles = [];
   badgeEl.innerText = "";
 
+  registerBtn.style.display = "none";
+  registerBtn.disabled = false;
+  registerBtn.innerText = "🏆 랭킹 등록 & 새로고침";
+
   scoreEl.innerText = score;
   overlay.style.display = "none";
   lastTime = performance.now();
-}}
+}
 
-function addMoreStairs() {{
-  while (stairs.length < player.y + 50) {{
+function addMoreStairs() {
+  while (stairs.length < player.y + 50) {
     const last = stairs[stairs.length - 1];
     const prev = stairs[stairs.length - 2];
     let dir = last.x - prev.x;
-    if (Math.random() < 0.38) {{
+    if (Math.random() < 0.38) {
       dir *= -1;
-    }}
+    }
     const nextIdx = stairs.length;
     stairs.push(createStair(last.x + dir, last.y + 1, nextIdx));
-  }}
-}}
+  }
+}
 
-function spawnParticles(x, y, color, count = 10) {{
-  for (let i = 0; i < count; i++) {{
-    particles.push({{
+function spawnParticles(x, y, color, count = 10) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
       x: x,
       y: y,
       vx: (Math.random() - 0.5) * 7,
       vy: (Math.random() - 0.9) * 6.5,
       life: 1.0,
       color: color
-    }});
-  }}
-}}
+    });
+  }
+}
 
-function advancePlayer(turned) {{
+function advancePlayer(turned) {
   if (!isPlaying || isGameOver) return;
   if (turned) player.dir *= -1;
 
@@ -514,91 +558,101 @@ function advancePlayer(turned) {{
   player.toY = nextY;
   player.animT = 0.0;
 
-  if (targetStair && targetStair.x === nextX) {{
+  if (targetStair && targetStair.x === nextX) {
     player.x = nextX;
     player.y = nextY;
 
-    if (targetStair.isGold) {{
+    if (targetStair.isGold) {
       score += 3;
       timeLeft = Math.min(100, timeLeft + 24);
       sfx.gold();
       spawnParticles(canvas.width / 2, canvas.height * 0.65, "#ffd32a", 20);
       showBadge("✨ GOLD STAIR +3 & TIME UP!", "#ffd32a");
       targetStair.isGold = false;
-    }} else {{
+    } else {
       score += 1;
       const recover = Math.max(8, 16 - Math.floor(score / 45));
       timeLeft = Math.min(100, timeLeft + recover);
       if (turned) sfx.turn();
       else sfx.step(score);
       spawnParticles(canvas.width / 2, canvas.height * 0.65, "#0be881", 9);
-    }}
+    }
 
     scoreEl.innerText = score;
     addMoreStairs();
-  }} else {{
+  } else {
     player.x = nextX;
     player.y = nextY;
     triggerGameOver("발을 헛디뎠습니다!");
-  }}
-}}
+  }
+}
 
-function submitScoreToStreamlit(finalScore) {{
-  try {{
-    const token = `${{Date.now()}}_${{Math.random().toString(36).slice(2, 7)}}`;
+function requestRankingRegisterAndReload() {
+  if (hasRegisteredCurrentRun || lastFinishedScore <= 0) return;
+  hasRegisteredCurrentRun = true;
+  registerBtn.disabled = true;
+  registerBtn.innerText = "등록 중 & 새로고침...";
+
+  const token = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  try {
     const url = new URL(window.parent.location.href);
-    url.searchParams.set("submit_score", String(finalScore));
+    url.searchParams.set("register_score", String(lastFinishedScore));
     url.searchParams.set("char", CHAR_CONFIG.name);
     url.searchParams.set("token", token);
-    window.parent.history.replaceState({{}}, "", url.toString());
-    window.parent.location.href = url.toString();
-  }} catch (err) {{
-    console.warn("Parent URL sync skipped:", err);
-  }}
-}}
+    window.parent.location.assign(url.toString());
+  } catch (err) {
+    window.location.reload();
+  }
+}
 
-function triggerGameOver(reason) {{
+function triggerGameOver(reason) {
   if (isGameOver) return;
   isGameOver = true;
   isPlaying = false;
+  lastFinishedScore = score;
   sfx.gameOver();
 
-  if (score > bestScore) {{
+  if (score > bestScore) {
     bestScore = score;
     localStorage.setItem("infinite_stairs_best", bestScore);
-    bestEl.innerText = `BEST: ${{bestScore}}`;
-  }}
+    bestEl.innerText = `BEST: ${bestScore}`;
+  }
 
   overlayTitle.innerText = "GAME OVER";
-  overlayDesc.innerHTML = `${{reason}}<br>최종 기록: <strong style="color:#0be881; font-size:22px;">${{score}}점</strong>`;
+  overlayDesc.innerHTML = `${reason}<br>최종 기록: <strong style="color:#0be881; font-size:22px;">${score}점</strong>`;
+
+  if (score > 0 && !hasRegisteredCurrentRun) {
+    registerBtn.style.display = "block";
+    registerBtn.disabled = false;
+    registerBtn.innerText = `🏆 랭킹 등록 (${score}점) & 새로고침`;
+  } else {
+    registerBtn.style.display = "none";
+  }
+
   startBtn.innerText = "다시 도전 (Space)";
   overlay.style.display = "flex";
+}
 
-  if (score > 0) {{
-    submitScoreToStreamlit(score);
-  }}
-}}
-
-function update(dt) {{
-  if (badgeTimer > 0) {{
+function update(dt) {
+  if (badgeTimer > 0) {
     badgeTimer -= dt;
     if (badgeTimer <= 0) badgeEl.innerText = "";
-  }}
+  }
 
   if (!isPlaying) return;
 
-  if (player.animT < 1.0) {{
+  if (player.animT < 1.0) {
     player.animT = Math.min(1.0, player.animT + dt / STEP_ANIM_DURATION);
-  }}
+  }
 
   const drainRate = 18 + Math.min(45, score * 0.22);
   timeLeft -= drainRate * dt;
 
-  if (timeLeft <= 0) {{
+  if (timeLeft <= 0) {
     timeLeft = 0;
     triggerGameOver("시간이 초과되었습니다!");
-  }}
-  timerBar.style.width = `${{timeLeft}}%`;
+  }
+  timerBar.style.width = `${timeLeft}%`;
 
   const vis = getVisualPlayerPos();
   const targetCamX = vis.x * STEP_W;
@@ -606,17 +660,17 @@ function update(dt) {{
   camera.x += (targetCamX - camera.x) * 18 * dt;
   camera.y += (targetCamY - camera.y) * 18 * dt;
 
-  for (let i = particles.length - 1; i >= 0; i--) {{
+  for (let i = particles.length - 1; i >= 0; i--) {
     let p = particles[i];
     p.x += p.vx;
     p.y += p.vy;
     p.vy += 0.25;
     p.life -= dt * 2.5;
     if (p.life <= 0) particles.splice(i, 1);
-  }}
-}}
+  }
+}
 
-function drawCharacter(px, py, dir, hopOffset) {{
+function drawCharacter(px, py, dir, hopOffset) {
   ctx.save();
   ctx.translate(px, py - hopOffset);
   if (dir === -1) ctx.scale(-1, 1);
@@ -639,7 +693,7 @@ function drawCharacter(px, py, dir, hopOffset) {{
   ctx.fillStyle = CHAR_CONFIG.band;
   ctx.fillRect(-12, -45, 24, 4);
 
-  if (CHAR_CONFIG.hat === "crown") {{
+  if (CHAR_CONFIG.hat === "crown") {
     ctx.fillStyle = "#ffd32a";
     ctx.beginPath();
     ctx.moveTo(-10, -49);
@@ -649,39 +703,39 @@ function drawCharacter(px, py, dir, hopOffset) {{
     ctx.lineTo(10, -49);
     ctx.closePath();
     ctx.fill();
-  }} else if (CHAR_CONFIG.hat === "visor") {{
+  } else if (CHAR_CONFIG.hat === "visor") {
     ctx.fillStyle = "#00f5d4";
     ctx.fillRect(0, -43, 12, 5);
-  }} else if (CHAR_CONFIG.hat === "hood") {{
+  } else if (CHAR_CONFIG.hat === "hood") {
     ctx.strokeStyle = CHAR_CONFIG.band;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(0, -38, 13.5, Math.PI * 0.85, Math.PI * 2.15);
     ctx.stroke();
-  }}
+  }
 
   ctx.restore();
-}}
+}
 
-function draw() {{
+function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const centerX = canvas.width / 2;
   const baseScreenY = canvas.height * 0.65;
 
   const altitudeRatio = Math.min(1, score / 300);
-  ctx.fillStyle = `rgba(10, 12, 28, ${{altitudeRatio * 0.6}})`;
+  ctx.fillStyle = `rgba(10, 12, 28, ${altitudeRatio * 0.6})`;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const startIdx = Math.max(0, player.y - 10);
   const endIdx = Math.min(stairs.length, player.y + 22);
 
-  for (let i = startIdx; i < endIdx; i++) {{
+  for (let i = startIdx; i < endIdx; i++) {
     const s = stairs[i];
     const screenX = centerX + (s.x * STEP_W - camera.x);
     const screenY = baseScreenY - (s.y * STEP_H - camera.y);
 
-    if (s.isGold) {{
+    if (s.isGold) {
       ctx.fillStyle = "#b7791f";
       ctx.beginPath();
       ctx.roundRect(screenX - 25, screenY + 6, 50, 14, 5);
@@ -696,7 +750,7 @@ function draw() {{
       ctx.beginPath();
       ctx.arc(screenX, screenY + 6.5, 3, 0, Math.PI * 2);
       ctx.fill();
-    }} else {{
+    } else {
       ctx.fillStyle = "#576574";
       ctx.beginPath();
       ctx.roundRect(screenX - 24, screenY + 6, 48, 14, 4);
@@ -706,8 +760,8 @@ function draw() {{
       ctx.beginPath();
       ctx.roundRect(screenX - 24, screenY, 48, 12, 4);
       ctx.fill();
-    }}
-  }}
+    }
+  }
 
   const vis = getVisualPlayerPos();
   const px = centerX + (vis.x * STEP_W - camera.x);
@@ -716,48 +770,49 @@ function draw() {{
 
   drawCharacter(px, py, player.dir, hopOffset);
 
-  for (let p of particles) {{
+  for (let p of particles) {
     ctx.globalAlpha = Math.max(0, p.life);
     ctx.fillStyle = p.color;
     ctx.beginPath();
     ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
     ctx.fill();
-  }}
+  }
   ctx.globalAlpha = 1.0;
-}}
+}
 
-function gameLoop(timestamp) {{
+function gameLoop(timestamp) {
   const dt = Math.min(0.05, (timestamp - lastTime) / 1000);
   lastTime = timestamp;
 
   update(dt);
   draw();
   requestAnimationFrame(gameLoop);
-}}
+}
 
-window.addEventListener("keydown", (e) => {{
+window.addEventListener("keydown", (e) => {
   if (e.repeat) return;
-  if (!isPlaying && (e.code === "Space" || e.code === "Enter")) {{
+  if (!isPlaying && (e.code === "Space" || e.code === "Enter")) {
     initGame();
     return;
-  }}
-  if (e.code === "ArrowUp" || e.code === "Space" || e.code === "KeyD") {{
+  }
+  if (e.code === "ArrowUp" || e.code === "Space" || e.code === "KeyD") {
     e.preventDefault();
     advancePlayer(false);
-  }} else if (e.code === "ArrowLeft" || e.code === "ShiftLeft" || e.code === "KeyA") {{
+  } else if (e.code === "ArrowLeft" || e.code === "ShiftLeft" || e.code === "KeyA") {
     e.preventDefault();
     advancePlayer(true);
-  }}
-}});
+  }
+});
 
-document.getElementById("btn-climb").addEventListener("pointerdown", (e) => {{
+document.getElementById("btn-climb").addEventListener("pointerdown", (e) => {
   e.preventDefault();
   advancePlayer(false);
-}});
-document.getElementById("btn-turn").addEventListener("pointerdown", (e) => {{
+});
+document.getElementById("btn-turn").addEventListener("pointerdown", (e) => {
   e.preventDefault();
   advancePlayer(true);
-}});
+});
+registerBtn.addEventListener("click", requestRankingRegisterAndReload);
 startBtn.addEventListener("click", initGame);
 
 requestAnimationFrame(gameLoop);
@@ -765,6 +820,15 @@ requestAnimationFrame(gameLoop);
 </body>
 </html>
 """
+
+game_html = (
+    game_html_template.replace("__CHAR_NAME__", char_data["name"])
+    .replace("__CHAR_BODY__", char_data["body"])
+    .replace("__CHAR_HEAD__", char_data["head"])
+    .replace("__CHAR_BAND__", char_data["band"])
+    .replace("__CHAR_EYE__", char_data["eye"])
+    .replace("__CHAR_HAT__", hat_js)
+)
 
 components.html(game_html, height=620)
 
