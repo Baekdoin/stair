@@ -13,7 +13,7 @@ FRONTEND_DIR.mkdir(exist_ok=True)
 CHARACTERS = {
     "mymelo_siyeoni": {
         "name": "마이멜로디 시연이",
-        "desc": "연핑크 토끼 후드와 리본이 포인트인 시연이 캐릭터",
+        "desc": "연핑크 토끼 후드와 두 귀·리본이 포인트인 시연이 캐릭터",
         "body": "#ff9ff3",
         "head": "#ffeaa7",
         "band": "#ff6b81",
@@ -22,7 +22,7 @@ CHARACTERS = {
     },
     "trex_siu": {
         "name": "티라노사우르스 시우",
-        "desc": "씩씩한 초록 공룡 등지느러미가 돋보이는 시우 캐릭터",
+        "desc": "큼직한 공룡 주둥이와 꼬리·등지느러미가 돋보이는 시우 캐릭터",
         "body": "#2ecc71",
         "head": "#27ae60",
         "band": "#f1c40f",
@@ -31,7 +31,7 @@ CHARACTERS = {
     },
     "princess_yua": {
         "name": "공주 유아",
-        "desc": "반짝이는 왕관과 로즈핑크 망토를 두른 유아 공주님",
+        "desc": "풍성한 드레스와 보석 왕관을 쓴 유아 공주님",
         "body": "#ff7979",
         "head": "#ffeaa7",
         "band": "#f9ca24",
@@ -639,18 +639,18 @@ function update(dt) {
   }
 }
 
-function drawFlower(cx, cy, radius = 6.5) {
+function drawFlower(cx, cy, radius = 5.5) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.fillStyle = "#ffffff";
   ctx.strokeStyle = "#1e1e24";
-  ctx.lineWidth = 1.6;
+  ctx.lineWidth = 1.5;
 
   for (let i = 0; i < 4; i++) {
     ctx.save();
     ctx.rotate((Math.PI / 2) * i + Math.PI / 4);
     ctx.beginPath();
-    ctx.ellipse(0, -radius * 0.75, radius * 0.58, radius * 0.72, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -radius * 0.72, radius * 0.55, radius * 0.68, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
@@ -658,7 +658,7 @@ function drawFlower(cx, cy, radius = 6.5) {
 
   ctx.fillStyle = "#ffd32a";
   ctx.beginPath();
-  ctx.arc(0, 0, radius * 0.42, 0, Math.PI * 2);
+  ctx.arc(0, 0, radius * 0.4, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
@@ -675,103 +675,330 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
+  // 두 다리
   ctx.fillStyle = whiteSkin;
   ctx.strokeStyle = outline;
-  ctx.lineWidth = 2.2;
-
+  ctx.lineWidth = 2.1;
   ctx.beginPath();
-  ctx.roundRect(-11, -14, 10, 14, 5);
+  ctx.roundRect(-10.5, -13, 9.5, 13, 4.5);
+  ctx.roundRect(1, -13, 9.5, 13, 4.5);
   ctx.fill();
   ctx.stroke();
 
+  // 몸통
   ctx.beginPath();
-  ctx.roundRect(1, -14, 10, 14, 5);
+  ctx.ellipse(0, -20, 13, 10.5, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  ctx.beginPath();
-  ctx.ellipse(0, -21, 13.5, 11, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = whiteSkin;
-  ctx.beginPath();
-  ctx.ellipse(0, -21.5, 12.2, 9.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-
+  // 핑크 케이프
   ctx.fillStyle = pinkHood;
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 2.2;
   ctx.beginPath();
-  ctx.moveTo(-14, -29);
-  ctx.lineTo(-18, -22);
-  ctx.lineTo(-7, -24);
-  ctx.lineTo(0, -27);
-  ctx.lineTo(7, -24);
-  ctx.lineTo(18, -22);
-  ctx.lineTo(14, -29);
+  ctx.moveTo(-14, -28);
+  ctx.lineTo(-18, -21);
+  ctx.lineTo(-6, -23.5);
+  ctx.lineTo(0, -26.5);
+  ctx.lineTo(6, -23.5);
+  ctx.lineTo(18, -21);
+  ctx.lineTo(14, -28);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
 
+  // 귀 1 (뒤쪽 접힌 핑크 귀 - 확실히 구분되도록 바깥쪽 배치)
   ctx.fillStyle = pinkHood;
   ctx.beginPath();
-  ctx.moveTo(4, -46);
-  ctx.bezierCurveTo(18, -56, 22, -41, 11, -37);
+  ctx.moveTo(6, -47);
+  ctx.bezierCurveTo(22, -62, 26, -42, 12, -37);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
 
-  ctx.beginPath();
-  ctx.arc(0, -39, 16.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
+  // 귀 2 (앞쪽 길게 뻗은 핑크 귀)
   ctx.beginPath();
   ctx.moveTo(-10, -48);
-  ctx.bezierCurveTo(-18, -68, -4, -73, 2, -52);
+  ctx.bezierCurveTo(-19, -71, -3, -75, 2, -52);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
 
-  ctx.fillStyle = whiteSkin;
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 2;
+  // 핑크 후드 본체
   ctx.beginPath();
-  ctx.ellipse(1.5, -37.5, 13.2, 11.2, 0, 0, Math.PI * 2);
+  ctx.arc(0, -39, 16, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
+  // 하얀 얼굴
+  ctx.fillStyle = whiteSkin;
+  ctx.lineWidth = 1.9;
+  ctx.beginPath();
+  ctx.ellipse(1.2, -37.5, 12.8, 10.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 세로 눈 + 노란 코 + 미소
   ctx.fillStyle = outline;
   ctx.beginPath();
-  ctx.ellipse(-4.5, -38.5, 2.1, 4.2, 0, 0, Math.PI * 2);
-  ctx.ellipse(8.2, -38.5, 2.1, 4.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(-4.5, -38.5, 2.0, 4.0, 0, 0, Math.PI * 2);
+  ctx.ellipse(7.8, -38.5, 2.0, 4.0, 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = "#ffd32a";
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.4;
   ctx.beginPath();
-  ctx.ellipse(2.0, -35.2, 2.8, 2.0, 0, 0, Math.PI * 2);
+  ctx.ellipse(1.8, -35.2, 2.6, 1.9, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 1.6;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.arc(2.0, -32.2, 2.6, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.arc(1.8, -32.3, 2.4, 0.15 * Math.PI, 0.85 * Math.PI);
   ctx.stroke();
 
+  // 손 흔들림
   const armSwing = hopOffset > 0 ? -3 : 0;
   ctx.fillStyle = whiteSkin;
+  ctx.lineWidth = 1.9;
+  ctx.beginPath();
+  ctx.arc(-11, -23.5 + armSwing, 4.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 꽃 장식 (귀 2 아래쪽 포인트)
+  drawFlower(-8.5, -49, 5.5);
+
+  ctx.restore();
+}
+
+function drawTRexCharacter(px, py, hopOffset) {
+  const outline = "#1e272e";
+  const dinoGreen = "#2ecc71";
+  const dinoDark = "#219150";
+  const spikeGold = "#ffd32a";
+  const bellyLight = "#a8e6cf";
+
+  ctx.save();
+  ctx.translate(px, py - hopOffset);
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  // 1. 두툼한 티라노 꼬리 (왼쪽 뒤)
+  ctx.fillStyle = dinoGreen;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(-10, -14);
+  ctx.quadraticCurveTo(-28, -12, -31, -22);
+  ctx.quadraticCurveTo(-22, -23, -10, -24);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 꼬리 위 노란 스파이크
+  ctx.fillStyle = spikeGold;
+  ctx.beginPath();
+  ctx.moveTo(-21, -22);
+  ctx.lineTo(-24, -27);
+  ctx.lineTo(-17, -23);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 2. 튼튼한 두 다리
+  const legStride = hopOffset > 0 ? 2.5 : 0;
+  ctx.fillStyle = dinoDark;
+  ctx.beginPath();
+  ctx.roundRect(-11 - legStride, -13, 9.5, 13, 4);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = dinoGreen;
+  ctx.beginPath();
+  ctx.roundRect(1 + legStride, -13, 9.5, 13, 4);
+  ctx.fill();
+  ctx.stroke();
+
+  // 3. 티라노 몸통 & 배 포인트
+  ctx.fillStyle = dinoGreen;
+  ctx.beginPath();
+  ctx.ellipse(-1, -22, 13, 12.5, -0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = bellyLight;
+  ctx.beginPath();
+  ctx.ellipse(5, -21, 6.5, 9.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 4. 등줄기 노란 지느러미 스파이크 3개
+  ctx.fillStyle = spikeGold;
+  const spikes = [
+    { x: -12, y: -31, tipX: -19, tipY: -35 },
+    { x: -13, y: -23, tipX: -20, tipY: -26 },
+    { x: -11, y: -15, tipX: -17, tipY: -17 }
+  ];
+  for (const sp of spikes) {
+    ctx.beginPath();
+    ctx.moveTo(sp.x, sp.y - 3);
+    ctx.lineTo(sp.tipX, sp.tipY);
+    ctx.lineTo(sp.x, sp.y + 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // 5. 큼직한 티라노 머리 & 길쭉한 주둥이(오른쪽 진행 방향)
+  ctx.fillStyle = dinoGreen;
+  ctx.beginPath();
+  ctx.moveTo(-10, -48);
+  ctx.quadraticCurveTo(6, -52, 18, -44);
+  ctx.quadraticCurveTo(22, -39, 17, -35);
+  ctx.lineTo(6, -35);
+  ctx.lineTo(14, -32);
+  ctx.quadraticCurveTo(6, -29, -10, -33);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 앙증맞은 짧은 앞발
+  ctx.fillStyle = dinoGreen;
+  ctx.beginPath();
+  ctx.roundRect(8, -25, 7, 5, 2.5);
+  ctx.fill();
+  ctx.stroke();
+
+  // 사납지만 귀여운 눈 & 눈썹
+  ctx.fillStyle = outline;
+  ctx.beginPath();
+  ctx.arc(5, -42, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(5.8, -42.8, 0.9, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.strokeStyle = outline;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(-11, -24 + armSwing, 4.5, 0, Math.PI * 2);
+  ctx.moveTo(2, -45.5);
+  ctx.lineTo(9, -43.5);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawPrincessCharacter(px, py, hopOffset) {
+  const outline = "#2d2235";
+  const dressPink = "#ff6b9d";
+  const dressLight = "#ffa8c5";
+  const gold = "#ffd32a";
+  const hairGold = "#f6b93b";
+
+  ctx.save();
+  ctx.translate(px, py - hopOffset);
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  // 1. 뒤로 흐르는 금발/허니 머릿결
+  ctx.fillStyle = hairGold;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 2.0;
+  ctx.beginPath();
+  ctx.ellipse(-6, -36, 13, 13, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  drawFlower(-9, -49, 6.2);
+  // 2. 발끝(구두)
+  ctx.fillStyle = "#ff477e";
+  ctx.beginPath();
+  ctx.ellipse(-6, -2, 4.5, 2.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(6, -2, 4.5, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 3. 풍성한 공주 드레스 치마
+  ctx.fillStyle = dressPink;
+  ctx.beginPath();
+  ctx.moveTo(-7, -28);
+  ctx.lineTo(7, -28);
+  ctx.quadraticCurveTo(17, -14, 18, -3);
+  ctx.lineTo(-18, -3);
+  ctx.quadraticCurveTo(-17, -14, -7, -28);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 치마 앞쪽 밝은 레이어 포인트
+  ctx.fillStyle = dressLight;
+  ctx.beginPath();
+  ctx.moveTo(-3, -27);
+  ctx.lineTo(4, -27);
+  ctx.lineTo(10, -4);
+  ctx.lineTo(-10, -4);
+  ctx.closePath();
+  ctx.fill();
+
+  // 드레스 허리 리본
+  ctx.fillStyle = gold;
+  ctx.beginPath();
+  ctx.arc(0, -24, 3.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 4. 얼굴
+  ctx.fillStyle = "#ffeaa7";
+  ctx.beginPath();
+  ctx.arc(1, -38, 11.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 반짝이는 눈 & 볼터치
+  ctx.fillStyle = outline;
+  ctx.beginPath();
+  ctx.ellipse(-3.5, -39, 2.0, 3.6, 0, 0, Math.PI * 2);
+  ctx.ellipse(6.5, -39, 2.0, 3.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(-4.1, -40.2, 0.9, 0, Math.PI * 2);
+  ctx.arc(5.9, -40.2, 0.9, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 107, 157, 0.55)";
+  ctx.beginPath();
+  ctx.ellipse(-1.5, -35.5, 2.6, 1.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(8.2, -35.5, 2.6, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 작은 미소
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(1.5, -35, 2.4, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.stroke();
+
+  // 5. 화려한 공주 왕관 + 루비 보석
+  ctx.fillStyle = gold;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.9;
+  ctx.beginPath();
+  ctx.moveTo(-9, -48);
+  ctx.lineTo(-11, -59);
+  ctx.lineTo(-4, -53);
+  ctx.lineTo(1, -62);
+  ctx.lineTo(6, -53);
+  ctx.lineTo(13, -59);
+  ctx.lineTo(11, -48);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#ff3838";
+  ctx.beginPath();
+  ctx.arc(1, -51.5, 2.4, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.restore();
 }
@@ -788,19 +1015,31 @@ function drawCharacter(px, py, dir, hopOffset) {
     return;
   }
 
+  if (CHAR_CONFIG.hat === "dino_spikes") {
+    ctx.save();
+    if (dir === -1) {
+      ctx.translate(px * 2, 0);
+      ctx.scale(-1, 1);
+    }
+    drawTRexCharacter(px, py, hopOffset);
+    ctx.restore();
+    return;
+  }
+
+  if (CHAR_CONFIG.hat === "tiara_crown") {
+    ctx.save();
+    if (dir === -1) {
+      ctx.translate(px * 2, 0);
+      ctx.scale(-1, 1);
+    }
+    drawPrincessCharacter(px, py, hopOffset);
+    ctx.restore();
+    return;
+  }
+
   ctx.save();
   ctx.translate(px, py - hopOffset);
   if (dir === -1) ctx.scale(-1, 1);
-
-  if (CHAR_CONFIG.hat === "dino_spikes") {
-    ctx.fillStyle = CHAR_CONFIG.head;
-    ctx.beginPath();
-    ctx.moveTo(-10, -8);
-    ctx.lineTo(-24, -4);
-    ctx.lineTo(-10, -1);
-    ctx.closePath();
-    ctx.fill();
-  }
 
   ctx.fillStyle = CHAR_CONFIG.body;
   ctx.beginPath();
@@ -817,45 +1056,10 @@ function drawCharacter(px, py, dir, hopOffset) {
   ctx.arc(5, -40, 2.5, 0, Math.PI * 2);
   ctx.fill();
 
-  if (CHAR_CONFIG.hat === "tiara_crown") {
-    ctx.fillStyle = "rgba(255, 107, 129, 0.45)";
-    ctx.beginPath();
-    ctx.arc(2, -36, 3.2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
   ctx.fillStyle = CHAR_CONFIG.band;
   ctx.fillRect(-12, -45, 24, 4);
 
-  if (CHAR_CONFIG.hat === "dino_spikes") {
-    ctx.fillStyle = CHAR_CONFIG.band;
-    for (let i = 0; i < 3; i++) {
-      const sy = -46 + i * 11;
-      ctx.beginPath();
-      ctx.moveTo(-11, sy);
-      ctx.lineTo(-18, sy + 4);
-      ctx.lineTo(-11, sy + 8);
-      ctx.closePath();
-      ctx.fill();
-    }
-  } else if (CHAR_CONFIG.hat === "tiara_crown") {
-    ctx.fillStyle = "#ffd32a";
-    ctx.beginPath();
-    ctx.moveTo(-10, -49);
-    ctx.lineTo(-8, -59);
-    ctx.lineTo(-2, -53);
-    ctx.lineTo(0, -61);
-    ctx.lineTo(2, -53);
-    ctx.lineTo(8, -59);
-    ctx.lineTo(10, -49);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = "#ff4757";
-    ctx.beginPath();
-    ctx.arc(0, -52, 2.2, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (CHAR_CONFIG.hat === "visor") {
+  if (CHAR_CONFIG.hat === "visor") {
     ctx.fillStyle = "#00f5d4";
     ctx.fillRect(0, -43, 12, 5);
   } else if (CHAR_CONFIG.hat === "hood") {
