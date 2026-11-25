@@ -788,7 +788,7 @@ init_db()
 if "flash_message" in st.session_state and st.session_state["flash_message"]:
     st.success(st.session_state.pop("flash_message"))
 
-st.title("🪜 무한의 계단 (Python Web Edition)")
+st.title("🪜 걷어차지 말아줘 사다리 ")
 st.caption("조작법: [↑ / Space / D / 오르기 버튼] 등반 | [← / Shift / A / 방향전환 버튼] 방향 전환 + 등반")
 
 col1, col2 = st.columns([1, 1.3])
