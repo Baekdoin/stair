@@ -811,16 +811,253 @@ function draw() {
   const py = baseScreenY - (vis.y * STEP_H - camera.y);
   const hopOffset = player.animT < 1.0 ? Math.sin(player.animT * Math.PI) * 9 : 0;
 
-  drawCharacter(px, py, player.dir, hopOffset);
+function drawFlower(cx, cy, radius = 6.5) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = "#1e1e24";
+  ctx.lineWidth = 1.6;
 
-  for (let p of particles) {
-    ctx.globalAlpha = Math.max(0, p.life);
-    ctx.fillStyle = p.color;
+  // 4잎 꽃잎
+  for (let i = 0; i < 4; i++) {
+    ctx.save();
+    ctx.rotate((Math.PI / 2) * i + Math.PI / 4);
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.ellipse(0, -radius * 0.75, radius * 0.58, radius * 0.72, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 꽃 중앙 노란 포인트
+  ctx.fillStyle = "#ffd32a";
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.42, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawMyMelodyCharacter(px, py, hopOffset) {
+  const outline = "#1e1e24";
+  const pinkHood = "#ff3b9a";
+  const whiteSkin = "#ffffff";
+
+  ctx.save();
+  // 발바닥 기준(0, 0)에서 위로 올라가는 구조
+  ctx.translate(px, py - hopOffset);
+
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  // 1. 둥근 흰 몸통 & 짧은 두 발
+  ctx.fillStyle = whiteSkin;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 2.2;
+
+  // 왼쪽 다리
+  ctx.beginPath();
+  ctx.roundRect(-11, -14, 10, 14, 5);
+  ctx.fill();
+  ctx.stroke();
+
+  // 오른쪽 다리
+  ctx.beginPath();
+  ctx.roundRect(1, -14, 10, 14, 5);
+  ctx.fill();
+  ctx.stroke();
+
+  // 몸통 (통통한 둥근 형태)
+  ctx.beginPath();
+  ctx.ellipse(0, -21, 13.5, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 몸통 위 다리 경계선 정리용 덧칠
+  ctx.fillStyle = whiteSkin;
+  ctx.beginPath();
+  ctx.ellipse(0, -21.5, 12.2, 9.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 2. 목 아래 핑크 케이프(카라)
+  ctx.fillStyle = pinkHood;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(-14, -29);
+  ctx.lineTo(-18, -22);
+  ctx.lineTo(-7, -24);
+  ctx.lineTo(0, -27);
+  ctx.lineTo(7, -24);
+  ctx.lineTo(18, -22);
+  ctx.lineTo(14, -29);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 3. 뒤쪽/접힌 토끼 귀 (오른쪽/후면 쪽)
+  ctx.fillStyle = pinkHood;
+  ctx.beginPath();
+  ctx.moveTo(4, -46);
+  ctx.bezierCurveTo(18, -56, 22, -41, 11, -37);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 4. 핑크 후드(두건) 본체
+  ctx.beginPath();
+  ctx.arc(0, -39, 16.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 5. 길게 뻗은 토끼 귀
+  ctx.beginPath();
+  ctx.moveTo(-10, -48);
+  ctx.bezierCurveTo(-18, -68, -4, -73, 2, -52);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 6. 하얀 얼굴 영역 (후드 안쪽)
+  ctx.fillStyle = whiteSkin;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(1.5, -37.5, 13.2, 11.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 7. 눈, 코, 입 (세로 타원 눈 + 노란 코)
+  ctx.fillStyle = outline;
+  ctx.beginPath();
+  ctx.ellipse(-4.5, -38.5, 2.1, 4.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(8.2, -38.5, 2.1, 4.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 노란 코
+  ctx.fillStyle = "#ffd32a";
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(2.0, -35.2, 2.8, 2.0, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 살짝 웃는 입
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.arc(2.0, -32.2, 2.6, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.stroke();
+
+  // 8. 앙증맞은 팔/손 모션 (이동 중 살짝 흔들림)
+  const armSwing = hopOffset > 0 ? -3 : 0;
+  ctx.fillStyle = whiteSkin;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(-11, -24 + armSwing, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 9. 귀 옆 흰 꽃 장식
+  drawFlower(-9, -49, 6.2);
+
+  ctx.restore();
+}
+
+function drawCharacter(px, py, dir, hopOffset) {
+  if (CHAR_CONFIG.hat === "mymelo_hood") {
+    ctx.save();
+    if (dir === -1) {
+      ctx.translate(px * 2, 0);
+      ctx.scale(-1, 1);
+    }
+    drawMyMelodyCharacter(px, py, hopOffset);
+    ctx.restore();
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(px, py - hopOffset);
+  if (dir === -1) ctx.scale(-1, 1);
+
+  if (CHAR_CONFIG.hat === "dino_spikes") {
+    ctx.fillStyle = CHAR_CONFIG.head;
+    ctx.beginPath();
+    ctx.moveTo(-10, -8);
+    ctx.lineTo(-24, -4);
+    ctx.lineTo(-10, -1);
+    ctx.closePath();
     ctx.fill();
   }
-  ctx.globalAlpha = 1.0;
+
+  ctx.fillStyle = CHAR_CONFIG.body;
+  ctx.beginPath();
+  ctx.roundRect(-12, -32, 24, 32, 8);
+  ctx.fill();
+
+  ctx.fillStyle = CHAR_CONFIG.head;
+  ctx.beginPath();
+  ctx.arc(0, -38, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = CHAR_CONFIG.eye;
+  ctx.beginPath();
+  ctx.arc(5, -40, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (CHAR_CONFIG.hat === "tiara_crown") {
+    ctx.fillStyle = "rgba(255, 107, 129, 0.45)";
+    ctx.beginPath();
+    ctx.arc(2, -36, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = CHAR_CONFIG.band;
+  ctx.fillRect(-12, -45, 24, 4);
+
+  if (CHAR_CONFIG.hat === "dino_spikes") {
+    ctx.fillStyle = CHAR_CONFIG.band;
+    for (let i = 0; i < 3; i++) {
+      const sy = -46 + i * 11;
+      ctx.beginPath();
+      ctx.moveTo(-11, sy);
+      ctx.lineTo(-18, sy + 4);
+      ctx.lineTo(-11, sy + 8);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (CHAR_CONFIG.hat === "tiara_crown") {
+    ctx.fillStyle = "#ffd32a";
+    ctx.beginPath();
+    ctx.moveTo(-10, -49);
+    ctx.lineTo(-8, -59);
+    ctx.lineTo(-2, -53);
+    ctx.lineTo(0, -61);
+    ctx.lineTo(2, -53);
+    ctx.lineTo(8, -59);
+    ctx.lineTo(10, -49);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#ff4757";
+    ctx.beginPath();
+    ctx.arc(0, -52, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (CHAR_CONFIG.hat === "visor") {
+    ctx.fillStyle = "#00f5d4";
+    ctx.fillRect(0, -43, 12, 5);
+  } else if (CHAR_CONFIG.hat === "hood") {
+    ctx.strokeStyle = CHAR_CONFIG.band;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, -38, 13.5, Math.PI * 0.85, Math.PI * 2.15);
+    ctx.stroke();
+  }
+
+  ctx.restore();
 }
 
 function gameLoop(timestamp) {
