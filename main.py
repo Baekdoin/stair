@@ -4,7 +4,7 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="무한의 계단 - Python Web", page_icon="🪜", layout="centered")
+st.set_page_config(page_title="조카들 미니게임 아케이드", page_icon="🎮", layout="centered")
 
 DB_PATH = Path(__file__).parent / "ranking.db"
 FRONTEND_DIR = Path(__file__).parent / "_game_frontend"
@@ -74,8 +74,10 @@ def init_db():
             """
             CREATE TABLE IF NOT EXISTS rankings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_type TEXT NOT NULL DEFAULT 'stairs',
                 nickname TEXT NOT NULL,
                 score INTEGER NOT NULL,
+                clear_time REAL,
                 character_name TEXT NOT NULL,
                 message TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
@@ -83,34 +85,61 @@ def init_db():
             """
         )
         cols = [row[1] for row in conn.execute("PRAGMA table_info(rankings)").fetchall()]
+        if "game_type" not in cols:
+            conn.execute("ALTER TABLE rankings ADD COLUMN game_type TEXT NOT NULL DEFAULT 'stairs'")
+        if "clear_time" not in cols:
+            conn.execute("ALTER TABLE rankings ADD COLUMN clear_time REAL")
         if "message" not in cols:
             conn.execute("ALTER TABLE rankings ADD COLUMN message TEXT NOT NULL DEFAULT ''")
         conn.commit()
 
 
-def qualifies_for_top10(score: int) -> bool:
-    if score <= 0:
+def qualifies_for_top10(game_type: str, value: float) -> bool:
+    if value is None:
         return False
     with sqlite3.connect(DB_PATH) as conn:
-        rows = conn.execute(
-            "SELECT score FROM rankings ORDER BY score DESC, id ASC LIMIT 10"
-        ).fetchall()
-    if len(rows) < 10:
-        return True
-    tenth_score = rows[-1][0]
-    return int(score) > int(tenth_score)
+        if game_type == "one_to_50":
+            if float(value) <= 0:
+                return False
+            rows = conn.execute(
+                """
+                SELECT clear_time FROM rankings
+                WHERE game_type = 'one_to_50' AND clear_time IS NOT NULL
+                ORDER BY clear_time ASC, id ASC
+                LIMIT 10
+                """
+            ).fetchall()
+            if len(rows) < 10:
+                return True
+            tenth_time = float(rows[-1][0])
+            return float(value) < tenth_time
+        else:
+            if int(value) <= 0:
+                return False
+            rows = conn.execute(
+                """
+                SELECT score FROM rankings
+                WHERE game_type = 'stairs'
+                ORDER BY score DESC, id ASC
+                LIMIT 10
+                """
+            ).fetchall()
+            if len(rows) < 10:
+                return True
+            tenth_score = int(rows[-1][0])
+            return int(value) > tenth_score
 
 
-def save_score(nickname: str, score: int, character_name: str, message: str = "") -> bool:
+def save_stairs_score(nickname: str, score: int, character_name: str, message: str = "") -> bool:
     clean_name = (nickname or "익명").strip()[:16] or "익명"
     if score <= 0:
         return False
-    clean_msg = (message or "").strip()[:30] if qualifies_for_top10(score) else ""
+    clean_msg = (message or "").strip()[:30] if qualifies_for_top10("stairs", score) else ""
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
-            INSERT INTO rankings (nickname, score, character_name, message, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO rankings (game_type, nickname, score, clear_time, character_name, message, created_at)
+            VALUES ('stairs', ?, ?, NULL, ?, ?, ?)
             """,
             (clean_name, int(score), character_name, clean_msg, datetime.now().strftime("%Y-%m-%d %H:%M")),
         )
@@ -118,21 +147,52 @@ def save_score(nickname: str, score: int, character_name: str, message: str = ""
     return True
 
 
-def get_top_rankings(limit: int = 10):
+def save_one_to_50_score(nickname: str, clear_time: float, character_name: str, message: str = "") -> bool:
+    clean_name = (nickname or "익명").strip()[:16] or "익명"
+    if clear_time is None or float(clear_time) <= 0:
+        return False
+    rounded_time = round(float(clear_time), 2)
+    clean_msg = (message or "").strip()[:30] if qualifies_for_top10("one_to_50", rounded_time) else ""
     with sqlite3.connect(DB_PATH) as conn:
-        cur = conn.execute(
+        conn.execute(
             """
-            SELECT nickname, score, character_name, message, created_at
-            FROM rankings
-            ORDER BY score DESC, id ASC
-            LIMIT ?
+            INSERT INTO rankings (game_type, nickname, score, clear_time, character_name, message, created_at)
+            VALUES ('one_to_50', ?, 0, ?, ?, ?, ?)
             """,
-            (limit,),
+            (clean_name, rounded_time, character_name, clean_msg, datetime.now().strftime("%Y-%m-%d %H:%M")),
         )
+        conn.commit()
+    return True
+
+
+def get_top_rankings(game_type: str, limit: int = 10):
+    with sqlite3.connect(DB_PATH) as conn:
+        if game_type == "one_to_50":
+            cur = conn.execute(
+                """
+                SELECT nickname, clear_time, character_name, message, created_at
+                FROM rankings
+                WHERE game_type = 'one_to_50' AND clear_time IS NOT NULL
+                ORDER BY clear_time ASC, id ASC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        else:
+            cur = conn.execute(
+                """
+                SELECT nickname, score, character_name, message, created_at
+                FROM rankings
+                WHERE game_type = 'stairs'
+                ORDER BY score DESC, id ASC
+                LIMIT ?
+                """,
+                (limit,),
+            )
         return cur.fetchall()
 
 
-def build_frontend_html(char_data: dict) -> str:
+def build_stairs_html(char_data: dict) -> str:
     hat_js = f'"{char_data["hat"]}"' if char_data["hat"] else "null"
     template = """<!DOCTYPE html>
 <html lang="ko">
@@ -443,14 +503,8 @@ const STEP_ANIM_DURATION = 0.055;
 
 let stairs = [];
 let player = {
-  x: 0,
-  y: 0,
-  dir: 1,
-  fromX: 0,
-  fromY: 0,
-  toX: 0,
-  toY: 0,
-  animT: 1.0
+  x: 0, y: 0, dir: 1,
+  fromX: 0, fromY: 0, toX: 0, toY: 0, animT: 1.0
 };
 let camera = { x: 0, y: 0 };
 let score = 0;
@@ -483,31 +537,17 @@ function getVisualPlayerPos() {
 
 function initGame() {
   stairs = [];
-  let curX = 0;
-  let curY = 0;
-  let dir = 1;
-
+  let curX = 0, curY = 0, dir = 1;
   stairs.push({ x: 0, y: 0, isGold: false });
 
   for (let i = 1; i < 100; i++) {
-    if (i > 1 && Math.random() < 0.35) {
-      dir *= -1;
-    }
+    if (i > 1 && Math.random() < 0.35) dir *= -1;
     curX += dir;
     curY += 1;
     stairs.push(createStair(curX, curY, i));
   }
 
-  player = {
-    x: 0,
-    y: 0,
-    dir: 1,
-    fromX: 0,
-    fromY: 0,
-    toX: 0,
-    toY: 0,
-    animT: 1.0
-  };
+  player = { x: 0, y: 0, dir: 1, fromX: 0, fromY: 0, toX: 0, toY: 0, animT: 1.0 };
   camera = { x: 0, y: 0 };
   score = 0;
   timeLeft = 100;
@@ -527,9 +567,7 @@ function addMoreStairs() {
     const last = stairs[stairs.length - 1];
     const prev = stairs[stairs.length - 2];
     let dir = last.x - prev.x;
-    if (Math.random() < 0.38) {
-      dir *= -1;
-    }
+    if (Math.random() < 0.38) dir *= -1;
     const nextIdx = stairs.length;
     stairs.push(createStair(last.x + dir, last.y + 1, nextIdx));
   }
@@ -538,8 +576,7 @@ function addMoreStairs() {
 function spawnParticles(x, y, color, count = 10) {
   for (let i = 0; i < count; i++) {
     particles.push({
-      x: x,
-      y: y,
+      x: x, y: y,
       vx: (Math.random() - 0.5) * 7,
       vy: (Math.random() - 0.9) * 6.5,
       life: 1.0,
@@ -611,6 +648,7 @@ function triggerGameOver(reason) {
     registerHint.style.display = "block";
     const runId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     Streamlit.setComponentValue({
+      gameType: "stairs",
       runId: runId,
       score: score,
       characterName: CHAR_CONFIG.name
@@ -628,7 +666,6 @@ function update(dt) {
     badgeTimer -= dt;
     if (badgeTimer <= 0) badgeEl.innerText = "";
   }
-
   if (!isPlaying) return;
 
   if (player.animT < 1.0) {
@@ -666,7 +703,6 @@ function drawFlower(cx, cy, radius = 5.8) {
   ctx.fillStyle = "#ffffff";
   ctx.strokeStyle = "#232028";
   ctx.lineWidth = 1.6;
-
   for (let i = 0; i < 4; i++) {
     ctx.save();
     ctx.rotate((Math.PI / 2) * i + Math.PI / 4);
@@ -676,13 +712,11 @@ function drawFlower(cx, cy, radius = 5.8) {
     ctx.stroke();
     ctx.restore();
   }
-
   ctx.fillStyle = "#ffd32a";
   ctx.beginPath();
   ctx.arc(0, 0, radius * 0.42, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
-
   ctx.restore();
 }
 
@@ -1216,13 +1250,380 @@ requestAnimationFrame(gameLoop);
     )
 
 
+def build_one_to_50_html(char_data: dict) -> str:
+    template = """<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; user-select: none; }
+  body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: white;
+    overflow: hidden;
+  }
+  #board-wrap {
+    position: relative;
+    width: 400px;
+    height: 560px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #1b223c 0%, #252f54 100%);
+    border: 3px solid #3b3e5b;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: #b8c4ff;
+    font-weight: 700;
+  }
+  .status-box {
+    background: rgba(0, 0, 0, 0.28);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+  }
+  .target-label {
+    font-size: 14px;
+    color: #d2dae2;
+  }
+  .target-num {
+    font-size: 32px;
+    font-weight: 900;
+    color: #ffdd59;
+  }
+  .timer-val {
+    font-size: 26px;
+    font-weight: 900;
+    color: #0be881;
+    font-variant-numeric: tabular-nums;
+  }
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin: 12px 0;
+    flex: 1;
+  }
+  .num-btn {
+    border: none;
+    border-radius: 12px;
+    font-size: 22px;
+    font-weight: 900;
+    cursor: pointer;
+    color: #1e272e;
+    background: #ffffff;
+    box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28);
+    transition: transform 0.05s, background 0.12s, opacity 0.15s;
+  }
+  .num-btn.second-wave {
+    background: __ACCENT_LIGHT__;
+    color: #1b1b2f;
+  }
+  .num-btn:active {
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.28);
+  }
+  .num-btn.cleared {
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.28);
+    box-shadow: none;
+    cursor: default;
+  }
+  .num-btn.wrong {
+    background: #ff5e57 !important;
+    color: #fff !important;
+  }
+  .bottom-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  #restart-btn {
+    flex: 1;
+    padding: 11px;
+    border: none;
+    border-radius: 10px;
+    background: __ACCENT_COLOR__;
+    color: #1e272e;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  #result-banner {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 17, 26, 0.92);
+    border-radius: 14px;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+    z-index: 10;
+  }
+  #result-banner h2 {
+    color: #ffdd59;
+    font-size: 28px;
+    margin-bottom: 10px;
+  }
+  #result-banner p {
+    color: #e2e8f0;
+    font-size: 16px;
+    line-height: 1.5;
+    margin-bottom: 18px;
+  }
+  #play-again-btn {
+    padding: 12px 28px;
+    border: none;
+    border-radius: 12px;
+    background: #0be881;
+    color: #1e272e;
+    font-size: 17px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div id="board-wrap">
+  <div>
+    <div class="header-row">
+      <span id="best-time">BEST: --.-s</span>
+      <span>캐릭터: __CHAR_NAME__</span>
+    </div>
+    <div class="status-box">
+      <div>
+        <div class="target-label">다음 숫자</div>
+        <div class="target-num" id="next-target">1</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="target-label">경과 시간</div>
+        <div class="timer-val" id="elapsed-time">0.00s</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="grid"></div>
+
+  <div class="bottom-bar">
+    <button id="restart-btn">새로 섞기 / 재시작</button>
+  </div>
+
+  <div id="result-banner">
+    <h2>🎉 50 클리어!</h2>
+    <p id="result-text"></p>
+    <button id="play-again-btn">다시 도전하기</button>
+  </div>
+</div>
+
+<script>
+const Streamlit = {
+  sendMessageToHost(type, data) {
+    window.parent.postMessage({
+      isStreamlitMessage: true,
+      type: type,
+      ...data
+    }, "*");
+  },
+  setComponentReady() {
+    this.sendMessageToHost("streamlit:componentReady", { apiVersion: 1 });
+  },
+  setFrameHeight(height) {
+    this.sendMessageToHost("streamlit:setFrameHeight", { height: height });
+  },
+  setComponentValue(value) {
+    this.sendMessageToHost("streamlit:setComponentValue", {
+      value: value,
+      dataType: "json"
+    });
+  }
+};
+
+window.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "streamlit:render") {
+    Streamlit.setFrameHeight(580);
+  }
+});
+
+const CHAR_NAME = "__CHAR_NAME__";
+const gridEl = document.getElementById("grid");
+const nextTargetEl = document.getElementById("next-target");
+const elapsedTimeEl = document.getElementById("elapsed-time");
+const bestTimeEl = document.getElementById("best-time");
+const resultBanner = document.getElementById("result-banner");
+const resultText = document.getElementById("result-text");
+const restartBtn = document.getElementById("restart-btn");
+const playAgainBtn = document.getElementById("play-again-btn");
+
+let bestTime = Number(localStorage.getItem("one_to_50_best") || 0);
+let nextNumber = 1;
+let startTimestamp = null;
+let isRunning = false;
+let isFinished = false;
+let rafId = null;
+
+function updateBestLabel() {
+  bestTimeEl.innerText = bestTime > 0 ? `BEST: ${bestTime.toFixed(2)}s` : "BEST: --.-s";
+}
+
+function shuffle(arr) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function formatElapsed() {
+  if (!isRunning || !startTimestamp) return "0.00s";
+  return `${((performance.now() - startTimestamp) / 1000).toFixed(2)}s`;
+}
+
+function tickTimer() {
+  if (isRunning && !isFinished) {
+    elapsedTimeEl.innerText = formatElapsed();
+    rafId = requestAnimationFrame(tickTimer);
+  }
+}
+
+function setupBoard() {
+  if (rafId) cancelAnimationFrame(rafId);
+  nextNumber = 1;
+  startTimestamp = null;
+  isRunning = false;
+  isFinished = false;
+
+  nextTargetEl.innerText = "1";
+  elapsedTimeEl.innerText = "0.00s";
+  resultBanner.style.display = "none";
+  gridEl.innerHTML = "";
+
+  const first25 = shuffle(Array.from({ length: 25 }, (_, i) => i + 1));
+  const second25 = shuffle(Array.from({ length: 25 }, (_, i) => i + 26));
+
+  for (let i = 0; i < 25; i++) {
+    const btn = document.createElement("button");
+    btn.className = "num-btn";
+    btn.dataset.primary = String(first25[i]);
+    btn.dataset.secondary = String(second25[i]);
+    btn.dataset.stage = "1";
+    btn.innerText = String(first25[i]);
+
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      handleTileClick(btn);
+    });
+    gridEl.appendChild(btn);
+  }
+}
+
+function handleTileClick(btn) {
+  if (isFinished || btn.classList.contains("cleared")) return;
+  const val = Number(btn.innerText);
+
+  if (val === nextNumber) {
+    if (nextNumber === 1 && !isRunning) {
+      isRunning = true;
+      startTimestamp = performance.now();
+      rafId = requestAnimationFrame(tickTimer);
+    }
+
+    if (nextNumber === 50) {
+      isFinished = true;
+      isRunning = false;
+      if (rafId) cancelAnimationFrame(rafId);
+
+      const finalSec = Number(((performance.now() - startTimestamp) / 1000).toFixed(2));
+      elapsedTimeEl.innerText = `${finalSec.toFixed(2)}s`;
+      btn.classList.add("cleared");
+      btn.innerText = "✓";
+
+      if (bestTime === 0 || finalSec < bestTime) {
+        bestTime = finalSec;
+        localStorage.setItem("one_to_50_best", String(bestTime));
+        updateBestLabel();
+      }
+
+      resultText.innerHTML = `기록: <strong style="color:#0be881; font-size:24px;">${finalSec.toFixed(2)}초</strong><br>아래 <strong>랭킹 등록</strong> 버튼을 눌러 기록을 남겨보세요!`;
+      resultBanner.style.display = "flex";
+
+      const runId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      Streamlit.setComponentValue({
+        gameType: "one_to_50",
+        runId: runId,
+        clearTime: finalSec,
+        characterName: CHAR_NAME
+      });
+      return;
+    }
+
+    nextNumber += 1;
+    nextTargetEl.innerText = String(nextNumber);
+
+    if (btn.dataset.stage === "1") {
+      btn.dataset.stage = "2";
+      btn.innerText = btn.dataset.secondary;
+      btn.classList.add("second-wave");
+    } else {
+      btn.classList.add("cleared");
+      btn.innerText = "✓";
+    }
+  } else {
+    btn.classList.add("wrong");
+    setTimeout(() => btn.classList.remove("wrong"), 160);
+  }
+}
+
+updateBestLabel();
+setupBoard();
+restartBtn.addEventListener("click", setupBoard);
+playAgainBtn.addEventListener("click", setupBoard);
+
+Streamlit.setComponentReady();
+Streamlit.setFrameHeight(580);
+</script>
+</body>
+</html>
+"""
+    return (
+        template.replace("__CHAR_NAME__", char_data["name"])
+        .replace("__ACCENT_COLOR__", char_data["body"])
+        .replace("__ACCENT_LIGHT__", char_data["head"])
+    )
+
+
 init_db()
 
 if "flash_message" in st.session_state and st.session_state["flash_message"]:
     st.success(st.session_state.pop("flash_message"))
 
-st.title("🪜 무한의 계단 (Python Web Edition)")
-st.caption("조작법: [↑ / Space / D / 오르기 버튼] 등반 | [← / Shift / A / 방향전환 버튼] 방향 전환 + 등반")
+st.title("🎮 조카들 미니게임 아케이드")
+
+selected_game = st.radio(
+    "게임 선택",
+    options=["stairs", "one_to_50"],
+    format_func=lambda g: "1️⃣ 무한의 계단 (점수 대결)" if g == "stairs" else "2️⃣ 1 to 50 (빠른 시간 대결)",
+    horizontal=True,
+)
 
 col1, col2 = st.columns([1, 1.3])
 with col1:
@@ -1242,79 +1643,159 @@ with col2:
     )
 
 char_data = CHARACTERS[selected_char_key]
-index_html_path = FRONTEND_DIR / "index.html"
-index_html_path.write_text(build_frontend_html(char_data), encoding="utf-8")
 
-infinite_stairs_component = components.declare_component(
-    "infinite_stairs_game",
-    path=str(FRONTEND_DIR),
-)
+if selected_game == "stairs":
+    st.caption("조작법: [↑ / Space / D / 오르기 버튼] 등반 | [← / Shift / A / 방향전환 버튼] 방향 전환 + 등반")
+    index_html_path = FRONTEND_DIR / "index.html"
+    index_html_path.write_text(build_stairs_html(char_data), encoding="utf-8")
 
-component_value = infinite_stairs_component(
-    characterName=char_data["name"],
-    key=f"game_comp_{selected_char_key}",
-    default=None,
-)
+    game_component = components.declare_component(
+        "infinite_stairs_game",
+        path=str(FRONTEND_DIR),
+    )
+    component_value = game_component(
+        characterName=char_data["name"],
+        key=f"stairs_comp_{selected_char_key}",
+        default=None,
+    )
 
-if isinstance(component_value, dict):
-    run_id = component_value.get("runId")
-    reported_score = component_value.get("score")
-    reported_char = component_value.get("characterName", char_data["name"])
-    if run_id and run_id != st.session_state.get("last_run_id"):
-        st.session_state["last_run_id"] = run_id
-        if isinstance(reported_score, (int, float)) and int(reported_score) > 0:
-            st.session_state["pending_score"] = int(reported_score)
-            st.session_state["pending_char"] = str(reported_char)
+    if isinstance(component_value, dict) and component_value.get("gameType") == "stairs":
+        run_id = component_value.get("runId")
+        reported_score = component_value.get("score")
+        reported_char = component_value.get("characterName", char_data["name"])
+        if run_id and run_id != st.session_state.get("last_stairs_run_id"):
+            st.session_state["last_stairs_run_id"] = run_id
+            if isinstance(reported_score, (int, float)) and int(reported_score) > 0:
+                st.session_state["pending_stairs_score"] = int(reported_score)
+                st.session_state["pending_stairs_char"] = str(reported_char)
 
-pending_score = st.session_state.get("pending_score")
-pending_char = st.session_state.get("pending_char", char_data["name"])
+    pending_score = st.session_state.get("pending_stairs_score")
+    pending_char = st.session_state.get("pending_stairs_char", char_data["name"])
 
-with st.container(border=True):
-    st.markdown("### 📝 실전 기록 랭킹 등록")
-    if pending_score and pending_score > 0:
-        can_leave_message = qualifies_for_top10(pending_score)
-        st.info(f"방금 종료된 게임 기록: **{pending_score}점** ({pending_char})")
+    with st.container(border=True):
+        st.markdown("### 📝 무한의 계단 랭킹 등록")
+        if pending_score and pending_score > 0:
+            can_leave_message = qualifies_for_top10("stairs", pending_score)
+            st.info(f"방금 종료된 기록: **{pending_score}점** ({pending_char})")
 
-        if can_leave_message:
-            rank_message = st.text_input(
-                "🌟 TOP 10 진입 축하 메시지 (선택 · 최대 30자)",
-                value=st.session_state.get("last_rank_message", ""),
-                max_chars=30,
-                placeholder="예: 1등은 내 거! / 시우 기다려!",
-                key=f"rank_msg_input_{st.session_state.get('last_run_id', 'default')}",
-            )
-            st.session_state["last_rank_message"] = rank_message
-        else:
-            rank_message = ""
-            st.caption("현재 10위권 점수에 미치지 못해 메시지는 남길 수 없습니다. 랭킹 등록은 가능해요!")
-
-        if st.button(f"🏆 {pending_score}점 랭킹 등록 & 화면 새로고침", type="primary", use_container_width=True):
-            if save_score(nickname, pending_score, pending_char, rank_message):
-                st.session_state["pending_score"] = None
-                st.session_state["last_rank_message"] = ""
-                st.session_state["flash_message"] = (
-                    f"🏆 '{(nickname or '익명').strip()[:16] or '익명'}' 님의 {pending_score}점 기록이 등록되었습니다!"
+            if can_leave_message:
+                rank_message = st.text_input(
+                    "🌟 TOP 10 진입 축하 메시지 (선택 · 최대 30자)",
+                    value=st.session_state.get("last_stairs_msg", ""),
+                    max_chars=30,
+                    placeholder="예: 1등은 내 거! / 시우 기다려!",
+                    key=f"stairs_msg_{st.session_state.get('last_stairs_run_id', 'default')}",
                 )
-            st.rerun()
+                st.session_state["last_stairs_msg"] = rank_message
+            else:
+                rank_message = ""
+                st.caption("현재 10위권 점수에 미치지 못해 메시지는 남길 수 없습니다. 랭킹 등록은 가능해요!")
+
+            if st.button(f"🏆 {pending_score}점 랭킹 등록 & 새로고침", type="primary", use_container_width=True):
+                if save_stairs_score(nickname, pending_score, pending_char, rank_message):
+                    st.session_state["pending_stairs_score"] = None
+                    st.session_state["last_stairs_msg"] = ""
+                    st.session_state["flash_message"] = (
+                        f"🏆 '{(nickname or '익명').strip()[:16] or '익명'}' 님의 {pending_score}점 기록이 등록되었습니다!"
+                    )
+                st.rerun()
+        else:
+            st.caption("게임을 플레이하고 게임 오버가 되면 점수가 전달되며, 10위권 기록이면 메시지도 함께 남길 수 있습니다.")
+
+    st.divider()
+    st.subheader("🏆 무한의 계단 랭킹 보드 (TOP 10)")
+    top_rows = get_top_rankings("stairs", 10)
+    if top_rows:
+        formatted_rows = [
+            {
+                "순위": idx,
+                "닉네임": row[0],
+                "점수": row[1],
+                "캐릭터": row[2],
+                "한마디": row[3] if idx <= 10 else "",
+                "기록 일시": row[4],
+            }
+            for idx, row in enumerate(top_rows, start=1)
+        ]
+        st.dataframe(formatted_rows, use_container_width=True, hide_index=True)
     else:
-        st.caption("게임을 플레이하고 게임 오버가 되면 실제 점수가 자동으로 전달되며, 10위권 기록이면 메시지도 함께 남길 수 있습니다.")
+        st.info("아직 등록된 기록이 없습니다. 첫 번째 기록을 세워보세요!")
 
-st.divider()
-st.subheader("🏆 실시간 랭킹 보드 (TOP 10)")
-
-top_rows = get_top_rankings(10)
-if top_rows:
-    formatted_rows = [
-        {
-            "순위": idx,
-            "닉네임": row[0],
-            "점수": row[1],
-            "캐릭터": row[2],
-            "한마디": row[3] if idx <= 10 else "",
-            "기록 일시": row[4],
-        }
-        for idx, row in enumerate(top_rows, start=1)
-    ]
-    st.dataframe(formatted_rows, use_container_width=True, hide_index=True)
 else:
-    st.info("아직 등록된 기록이 없습니다. 첫 번째 기록을 세워보세요!")
+    st.caption("조작법: [1]을 누르면 타이머 시작! [1]부터 [50]까지 순서대로 빠르게 터치/클릭하세요.")
+    one_to_50_dir = FRONTEND_DIR / "one_to_50"
+    one_to_50_dir.mkdir(exist_ok=True)
+    one_to_50_html_path = one_to_50_dir / "index.html"
+    one_to_50_html_path.write_text(build_one_to_50_html(char_data), encoding="utf-8")
+
+    one_to_50_component = components.declare_component(
+        "one_to_50_game",
+        path=str(one_to_50_dir),
+    )
+    comp_50_value = one_to_50_component(
+        characterName=char_data["name"],
+        key=f"one50_comp_{selected_char_key}",
+        default=None,
+    )
+
+    if isinstance(comp_50_value, dict) and comp_50_value.get("gameType") == "one_to_50":
+        run_id = comp_50_value.get("runId")
+        reported_time = comp_50_value.get("clearTime")
+        reported_char = comp_50_value.get("characterName", char_data["name"])
+        if run_id and run_id != st.session_state.get("last_50_run_id"):
+            st.session_state["last_50_run_id"] = run_id
+            if isinstance(reported_time, (int, float)) and float(reported_time) > 0:
+                st.session_state["pending_50_time"] = round(float(reported_time), 2)
+                st.session_state["pending_50_char"] = str(reported_char)
+
+    pending_time = st.session_state.get("pending_50_time")
+    pending_50_char = st.session_state.get("pending_50_char", char_data["name"])
+
+    with st.container(border=True):
+        st.markdown("### 📝 1 to 50 랭킹 등록")
+        if pending_time and pending_time > 0:
+            can_leave_message = qualifies_for_top10("one_to_50", pending_time)
+            st.info(f"방금 클리어한 기록: **{pending_time:.2f}초** ({pending_50_char})")
+
+            if can_leave_message:
+                rank_message = st.text_input(
+                    "🌟 TOP 10 진입 축하 메시지 (선택 · 최대 30자)",
+                    value=st.session_state.get("last_50_msg", ""),
+                    max_chars=30,
+                    placeholder="예: 손가락 제일 빨라! / 기록 깨봐!",
+                    key=f"fifty_msg_{st.session_state.get('last_50_run_id', 'default')}",
+                )
+                st.session_state["last_50_msg"] = rank_message
+            else:
+                rank_message = ""
+                st.caption("현재 10위권 기록에 들지 못해 메시지는 남길 수 없습니다. 랭킹 등록은 가능해요!")
+
+            if st.button(f"🏆 {pending_time:.2f}초 랭킹 등록 & 새로고침", type="primary", use_container_width=True):
+                if save_one_to_50_score(nickname, pending_time, pending_50_char, rank_message):
+                    st.session_state["pending_50_time"] = None
+                    st.session_state["last_50_msg"] = ""
+                    st.session_state["flash_message"] = (
+                        f"🏆 '{(nickname or '익명').strip()[:16] or '익명'}' 님의 {pending_time:.2f}초 기록이 등록되었습니다!"
+                    )
+                st.rerun()
+        else:
+            st.caption("50까지 모두 누르면 클리어 시간이 전달되며, 10위권 기록이면 메시지도 함께 남길 수 있습니다.")
+
+    st.divider()
+    st.subheader("⏱️ 1 to 50 랭킹 보드 (TOP 10 · 빠른 순)")
+    top_50_rows = get_top_rankings("one_to_50", 10)
+    if top_50_rows:
+        formatted_50 = [
+            {
+                "순위": idx,
+                "닉네임": row[0],
+                "기록(초)": f"{float(row[1]):.2f}s",
+                "캐릭터": row[2],
+                "한마디": row[3] if idx <= 10 else "",
+                "기록 일시": row[4],
+            }
+            for idx, row in enumerate(top_50_rows, start=1)
+        ]
+        st.dataframe(formatted_50, use_container_width=True, hide_index=True)
+    else:
+        st.info("아직 50 클리어 기록이 없습니다. 가장 빠른 기록을 세워보세요!")
