@@ -77,21 +77,42 @@ def init_db():
                 nickname TEXT NOT NULL,
                 score INTEGER NOT NULL,
                 character_name TEXT NOT NULL,
+                message TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             )
             """
         )
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(rankings)").fetchall()]
+        if "message" not in cols:
+            conn.execute("ALTER TABLE rankings ADD COLUMN message TEXT NOT NULL DEFAULT ''")
         conn.commit()
 
 
-def save_score(nickname: str, score: int, character_name: str) -> bool:
-    clean_name = (nickname or "익명").strip()[:16] or "익명"
+def qualifies_for_top10(score: int) -> bool:
     if score <= 0:
         return False
     with sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT score FROM rankings ORDER BY score DESC, id ASC LIMIT 10"
+        ).fetchall()
+    if len(rows) < 10:
+        return True
+    tenth_score = rows[-1][0]
+    return int(score) > int(tenth_score)
+
+
+def save_score(nickname: str, score: int, character_name: str, message: str = "") -> bool:
+    clean_name = (nickname or "익명").strip()[:16] or "익명"
+    if score <= 0:
+        return False
+    clean_msg = (message or "").strip()[:30] if qualifies_for_top10(score) else ""
+    with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
-            "INSERT INTO rankings (nickname, score, character_name, created_at) VALUES (?, ?, ?, ?)",
-            (clean_name, int(score), character_name, datetime.now().strftime("%Y-%m-%d %H:%M")),
+            """
+            INSERT INTO rankings (nickname, score, character_name, message, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (clean_name, int(score), character_name, clean_msg, datetime.now().strftime("%Y-%m-%d %H:%M")),
         )
         conn.commit()
     return True
@@ -101,7 +122,7 @@ def get_top_rankings(limit: int = 10):
     with sqlite3.connect(DB_PATH) as conn:
         cur = conn.execute(
             """
-            SELECT nickname, score, character_name, created_at
+            SELECT nickname, score, character_name, message, created_at
             FROM rankings
             ORDER BY score DESC, id ASC
             LIMIT ?
@@ -676,7 +697,6 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
-  // 1. 뒤쪽 하얀 꽁지 꼬리
   ctx.fillStyle = whiteSkin;
   ctx.strokeStyle = outline;
   ctx.lineWidth = 2.0;
@@ -685,7 +705,6 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 2. 폴짝 뛰는 다리 두 개 (점프할 때 살짝 들리며 앞으로 뻗음)
   const legLift = isJumping ? -3.5 : 0;
   ctx.fillStyle = whiteSkin;
   ctx.beginPath();
@@ -698,14 +717,12 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 3. 둥글고 앙증맞은 흰 몸통
   ctx.fillStyle = whiteSkin;
   ctx.beginPath();
   ctx.ellipse(0, -18, 12, 10.5, -0.08, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // 4. 목 아래 핑크 케이프(카라)
   ctx.fillStyle = pinkHood;
   ctx.beginPath();
   ctx.moveTo(-11, -26);
@@ -718,11 +735,9 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 5. 나란히 뒤로 뻗는 토끼 귀 2개 (위/뒤 귀 + 아래/앞 귀)
   ctx.fillStyle = pinkHood;
   ctx.lineWidth = 2.1;
 
-  // 윗귀 (살짝 위쪽으로 뻗음)
   ctx.beginPath();
   ctx.moveTo(4, -46);
   ctx.bezierCurveTo(16, -61, 29, -62, 27, -52);
@@ -731,7 +746,6 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 아랫귀 (나란히 뒤로 뻗음)
   ctx.beginPath();
   ctx.moveTo(6, -42);
   ctx.bezierCurveTo(18, -48, 30, -47, 28, -38);
@@ -740,14 +754,12 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 6. 풍성한 핑크 후드(두건)
   ctx.fillStyle = pinkHood;
   ctx.beginPath();
   ctx.arc(-1, -37, 15.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // 7. 옆모습 하얀 얼굴
   ctx.fillStyle = whiteSkin;
   ctx.lineWidth = 2.0;
   ctx.beginPath();
@@ -755,26 +767,22 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 후드가 얼굴 뒤쪽을 감싸는 라인 정리
   ctx.fillStyle = pinkHood;
   ctx.beginPath();
   ctx.arc(-2, -37, 15.5, Math.PI * 0.62, Math.PI * 1.45);
   ctx.fill();
   ctx.stroke();
 
-  // 다시 흰 얼굴 중심부 깔끔하게
   ctx.fillStyle = whiteSkin;
   ctx.beginPath();
   ctx.ellipse(3.2, -36, 11.4, 10.6, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 눈 (세로 타원)
   ctx.fillStyle = outline;
   ctx.beginPath();
   ctx.ellipse(5.5, -37.5, 2.2, 4.4, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 코 (노란 포인트)
   ctx.fillStyle = "#ffd32a";
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.4;
@@ -783,125 +791,27 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 앙증맞은 입 ('o' 또는 살짝 벌린 귀여운 표정)
   ctx.fillStyle = outline;
   ctx.beginPath();
   ctx.ellipse(11.8, -31.5, 1.5, 1.9, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 8. 두 팔을 앞쪽/뺨 쪽으로 모아 폴짝 뛰는 포즈
   const handY = isJumping ? -26 : -24;
   ctx.fillStyle = whiteSkin;
   ctx.strokeStyle = outline;
   ctx.lineWidth = 2.0;
 
-  // 안쪽 팔
   ctx.beginPath();
   ctx.roundRect(4, handY - 4, 7.5, 12, 4);
   ctx.fill();
   ctx.stroke();
 
-  // 바깥쪽 손/팔 (귀여운 손가락 포인트)
   ctx.beginPath();
   ctx.roundRect(7.5, handY - 2, 8.5, 12.5, 4.2);
   ctx.fill();
   ctx.stroke();
 
-  // 9. 앞쪽 꽃 장식
   drawFlower(6.5, -48.5, 5.6);
-
-  ctx.restore();
-}
-
-function drawCharacter(px, py, dir, hopOffset) {
-  if (CHAR_CONFIG.hat === "mymelo_hood") {
-    ctx.save();
-    if (dir === -1) {
-      ctx.translate(px * 2, 0);
-      ctx.scale(-1, 1);
-    }
-    drawMyMelodyCharacter(px, py, hopOffset);
-    ctx.restore();
-    return;
-  }
-
-  ctx.save();
-  ctx.translate(px, py - hopOffset);
-  if (dir === -1) ctx.scale(-1, 1);
-
-  if (CHAR_CONFIG.hat === "dino_spikes") {
-    ctx.fillStyle = CHAR_CONFIG.head;
-    ctx.beginPath();
-    ctx.moveTo(-10, -8);
-    ctx.lineTo(-24, -4);
-    ctx.lineTo(-10, -1);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  ctx.fillStyle = CHAR_CONFIG.body;
-  ctx.beginPath();
-  ctx.roundRect(-12, -32, 24, 32, 8);
-  ctx.fill();
-
-  ctx.fillStyle = CHAR_CONFIG.head;
-  ctx.beginPath();
-  ctx.arc(0, -38, 12, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = CHAR_CONFIG.eye;
-  ctx.beginPath();
-  ctx.arc(5, -40, 2.5, 0, Math.PI * 2);
-  ctx.fill();
-
-  if (CHAR_CONFIG.hat === "tiara_crown") {
-    ctx.fillStyle = "rgba(255, 107, 129, 0.45)";
-    ctx.beginPath();
-    ctx.arc(2, -36, 3.2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.fillStyle = CHAR_CONFIG.band;
-  ctx.fillRect(-12, -45, 24, 4);
-
-  if (CHAR_CONFIG.hat === "dino_spikes") {
-    ctx.fillStyle = CHAR_CONFIG.band;
-    for (let i = 0; i < 3; i++) {
-      const sy = -46 + i * 11;
-      ctx.beginPath();
-      ctx.moveTo(-11, sy);
-      ctx.lineTo(-18, sy + 4);
-      ctx.lineTo(-11, sy + 8);
-      ctx.closePath();
-      ctx.fill();
-    }
-  } else if (CHAR_CONFIG.hat === "tiara_crown") {
-    ctx.fillStyle = "#ffd32a";
-    ctx.beginPath();
-    ctx.moveTo(-10, -49);
-    ctx.lineTo(-8, -59);
-    ctx.lineTo(-2, -53);
-    ctx.lineTo(0, -61);
-    ctx.lineTo(2, -53);
-    ctx.lineTo(8, -59);
-    ctx.lineTo(10, -49);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = "#ff4757";
-    ctx.beginPath();
-    ctx.arc(0, -52, 2.2, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (CHAR_CONFIG.hat === "visor") {
-    ctx.fillStyle = "#00f5d4";
-    ctx.fillRect(0, -43, 12, 5);
-  } else if (CHAR_CONFIG.hat === "hood") {
-    ctx.strokeStyle = CHAR_CONFIG.band;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, -38, 13.5, Math.PI * 0.85, Math.PI * 2.15);
-    ctx.stroke();
-  }
 
   ctx.restore();
 }
@@ -918,7 +828,6 @@ function drawTRexCharacter(px, py, hopOffset) {
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
-  // 1. 두툼한 티라노 꼬리 (왼쪽 뒤)
   ctx.fillStyle = dinoGreen;
   ctx.strokeStyle = outline;
   ctx.lineWidth = 2.2;
@@ -930,7 +839,6 @@ function drawTRexCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 꼬리 위 노란 스파이크
   ctx.fillStyle = spikeGold;
   ctx.beginPath();
   ctx.moveTo(-21, -22);
@@ -940,7 +848,6 @@ function drawTRexCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 2. 튼튼한 두 다리
   const legStride = hopOffset > 0 ? 2.5 : 0;
   ctx.fillStyle = dinoDark;
   ctx.beginPath();
@@ -954,7 +861,6 @@ function drawTRexCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 3. 티라노 몸통 & 배 포인트
   ctx.fillStyle = dinoGreen;
   ctx.beginPath();
   ctx.ellipse(-1, -22, 13, 12.5, -0.1, 0, Math.PI * 2);
@@ -966,7 +872,6 @@ function drawTRexCharacter(px, py, hopOffset) {
   ctx.ellipse(5, -21, 6.5, 9.5, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 4. 등줄기 노란 지느러미 스파이크 3개
   ctx.fillStyle = spikeGold;
   const spikes = [
     { x: -12, y: -31, tipX: -19, tipY: -35 },
@@ -983,7 +888,6 @@ function drawTRexCharacter(px, py, hopOffset) {
     ctx.stroke();
   }
 
-  // 5. 큼직한 티라노 머리 & 길쭉한 주둥이(오른쪽 진행 방향)
   ctx.fillStyle = dinoGreen;
   ctx.beginPath();
   ctx.moveTo(-10, -48);
@@ -996,14 +900,12 @@ function drawTRexCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 앙증맞은 짧은 앞발
   ctx.fillStyle = dinoGreen;
   ctx.beginPath();
   ctx.roundRect(8, -25, 7, 5, 2.5);
   ctx.fill();
   ctx.stroke();
 
-  // 사납지만 귀여운 눈 & 눈썹
   ctx.fillStyle = outline;
   ctx.beginPath();
   ctx.arc(5, -42, 2.5, 0, Math.PI * 2);
@@ -1036,7 +938,6 @@ function drawPrincessCharacter(px, py, hopOffset) {
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
-  // 1. 뒤로 흐르는 금발/허니 머릿결
   ctx.fillStyle = hairGold;
   ctx.strokeStyle = outline;
   ctx.lineWidth = 2.0;
@@ -1045,7 +946,6 @@ function drawPrincessCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 2. 발끝(구두)
   ctx.fillStyle = "#ff477e";
   ctx.beginPath();
   ctx.ellipse(-6, -2, 4.5, 2.5, 0, 0, Math.PI * 2);
@@ -1053,7 +953,6 @@ function drawPrincessCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 3. 풍성한 공주 드레스 치마
   ctx.fillStyle = dressPink;
   ctx.beginPath();
   ctx.moveTo(-7, -28);
@@ -1065,7 +964,6 @@ function drawPrincessCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 치마 앞쪽 밝은 레이어 포인트
   ctx.fillStyle = dressLight;
   ctx.beginPath();
   ctx.moveTo(-3, -27);
@@ -1075,21 +973,18 @@ function drawPrincessCharacter(px, py, hopOffset) {
   ctx.closePath();
   ctx.fill();
 
-  // 드레스 허리 리본
   ctx.fillStyle = gold;
   ctx.beginPath();
   ctx.arc(0, -24, 3.2, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // 4. 얼굴
   ctx.fillStyle = "#ffeaa7";
   ctx.beginPath();
   ctx.arc(1, -38, 11.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // 반짝이는 눈 & 볼터치
   ctx.fillStyle = outline;
   ctx.beginPath();
   ctx.ellipse(-3.5, -39, 2.0, 3.6, 0, 0, Math.PI * 2);
@@ -1108,14 +1003,12 @@ function drawPrincessCharacter(px, py, hopOffset) {
   ctx.ellipse(8.2, -35.5, 2.6, 1.5, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 작은 미소
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(1.5, -35, 2.4, 0.15 * Math.PI, 0.85 * Math.PI);
   ctx.stroke();
 
-  // 5. 화려한 공주 왕관 + 루비 보석
   ctx.fillStyle = gold;
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.9;
@@ -1379,16 +1272,32 @@ pending_char = st.session_state.get("pending_char", char_data["name"])
 with st.container(border=True):
     st.markdown("### 📝 실전 기록 랭킹 등록")
     if pending_score and pending_score > 0:
+        can_leave_message = qualifies_for_top10(pending_score)
         st.info(f"방금 종료된 게임 기록: **{pending_score}점** ({pending_char})")
+
+        if can_leave_message:
+            rank_message = st.text_input(
+                "🌟 TOP 10 진입 축하 메시지 (선택 · 최대 30자)",
+                value=st.session_state.get("last_rank_message", ""),
+                max_chars=30,
+                placeholder="예: 1등은 내 거! / 시우 기다려!",
+                key=f"rank_msg_input_{st.session_state.get('last_run_id', 'default')}",
+            )
+            st.session_state["last_rank_message"] = rank_message
+        else:
+            rank_message = ""
+            st.caption("현재 10위권 점수에 미치지 못해 메시지는 남길 수 없습니다. 랭킹 등록은 가능해요!")
+
         if st.button(f"🏆 {pending_score}점 랭킹 등록 & 화면 새로고침", type="primary", use_container_width=True):
-            if save_score(nickname, pending_score, pending_char):
+            if save_score(nickname, pending_score, pending_char, rank_message):
                 st.session_state["pending_score"] = None
+                st.session_state["last_rank_message"] = ""
                 st.session_state["flash_message"] = (
                     f"🏆 '{(nickname or '익명').strip()[:16] or '익명'}' 님의 {pending_score}점 기록이 등록되었습니다!"
                 )
             st.rerun()
     else:
-        st.caption("게임을 플레이하고 게임 오버가 되면 실제 점수가 자동으로 전달되며, 이 자리에서 등록 버튼을 누를 수 있습니다.")
+        st.caption("게임을 플레이하고 게임 오버가 되면 실제 점수가 자동으로 전달되며, 10위권 기록이면 메시지도 함께 남길 수 있습니다.")
 
 st.divider()
 st.subheader("🏆 실시간 랭킹 보드 (TOP 10)")
@@ -1401,7 +1310,8 @@ if top_rows:
             "닉네임": row[0],
             "점수": row[1],
             "캐릭터": row[2],
-            "기록 일시": row[3],
+            "한마디": row[3] if idx <= 10 else "",
+            "기록 일시": row[4],
         }
         for idx, row in enumerate(top_rows, start=1)
     ]
