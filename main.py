@@ -639,178 +639,6 @@ function update(dt) {
   }
 }
 
-function drawCharacter(px, py, dir, hopOffset) {
-  ctx.save();
-  ctx.translate(px, py - hopOffset);
-  if (dir === -1) ctx.scale(-1, 1);
-
-  // 공룡 꼬리 (티라노사우르스 시우 전용)
-  if (CHAR_CONFIG.hat === "dino_spikes") {
-    ctx.fillStyle = CHAR_CONFIG.head;
-    ctx.beginPath();
-    ctx.moveTo(-10, -8);
-    ctx.lineTo(-24, -4);
-    ctx.lineTo(-10, -1);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  // 몸통
-  ctx.fillStyle = CHAR_CONFIG.body;
-  ctx.beginPath();
-  ctx.roundRect(-12, -32, 24, 32, 8);
-  ctx.fill();
-
-  // 머리
-  ctx.fillStyle = CHAR_CONFIG.head;
-  ctx.beginPath();
-  ctx.arc(0, -38, 12, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 눈
-  ctx.fillStyle = CHAR_CONFIG.eye;
-  ctx.beginPath();
-  ctx.arc(5, -40, 2.5, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 볼터치 (마이멜로디 / 공주 캐릭터 포인트)
-  if (CHAR_CONFIG.hat === "mymelo_hood" || CHAR_CONFIG.hat === "tiara_crown") {
-    ctx.fillStyle = "rgba(255, 107, 129, 0.45)";
-    ctx.beginPath();
-    ctx.arc(2, -36, 3.2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // 머리띠 / 장식
-  ctx.fillStyle = CHAR_CONFIG.band;
-  ctx.fillRect(-12, -45, 24, 4);
-
-  if (CHAR_CONFIG.hat === "mymelo_hood") {
-    // 마이멜로디 시연이: 연핑크 후드 & 토끼 귀 & 오른쪽 리본
-    ctx.strokeStyle = "#ff9ff3";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(0, -38, 13.5, Math.PI * 0.75, Math.PI * 2.25);
-    ctx.stroke();
-
-    // 왼쪽 토끼 귀
-    ctx.fillStyle = "#ff9ff3";
-    ctx.beginPath();
-    ctx.ellipse(-6, -56, 4.2, 9.5, -0.18, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 오른쪽 토끼 귀
-    ctx.beginPath();
-    ctx.ellipse(5, -56, 4.2, 9.5, 0.18, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 귀 안쪽 핑크
-    ctx.fillStyle = "#ffc8dd";
-    ctx.beginPath();
-    ctx.ellipse(-6, -56, 1.8, 5.5, -0.18, 0, Math.PI * 2);
-    ctx.ellipse(5, -56, 1.8, 5.5, 0.18, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 포인트 리본
-    ctx.fillStyle = "#ff4757";
-    ctx.beginPath();
-    ctx.arc(8, -48, 3.5, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (CHAR_CONFIG.hat === "dino_spikes") {
-    // 티라노사우르스 시우: 머리~등 톱니 스파이크
-    ctx.fillStyle = CHAR_CONFIG.band;
-    for (let i = 0; i < 3; i++) {
-      const sy = -46 + i * 11;
-      ctx.beginPath();
-      ctx.moveTo(-11, sy);
-      ctx.lineTo(-18, sy + 4);
-      ctx.lineTo(-11, sy + 8);
-      ctx.closePath();
-      ctx.fill();
-    }
-  } else if (CHAR_CONFIG.hat === "tiara_crown") {
-    // 공주 유아: 황금 티아라 왕관 & 보석 포인트
-    ctx.fillStyle = "#ffd32a";
-    ctx.beginPath();
-    ctx.moveTo(-10, -49);
-    ctx.lineTo(-8, -59);
-    ctx.lineTo(-2, -53);
-    ctx.lineTo(0, -61);
-    ctx.lineTo(2, -53);
-    ctx.lineTo(8, -59);
-    ctx.lineTo(10, -49);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = "#ff4757";
-    ctx.beginPath();
-    ctx.arc(0, -52, 2.2, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (CHAR_CONFIG.hat === "visor") {
-    ctx.fillStyle = "#00f5d4";
-    ctx.fillRect(0, -43, 12, 5);
-  } else if (CHAR_CONFIG.hat === "hood") {
-    ctx.strokeStyle = CHAR_CONFIG.band;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, -38, 13.5, Math.PI * 0.85, Math.PI * 2.15);
-    ctx.stroke();
-  }
-
-  ctx.restore();
-}
-
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const centerX = canvas.width / 2;
-  const baseScreenY = canvas.height * 0.65;
-
-  const altitudeRatio = Math.min(1, score / 300);
-  ctx.fillStyle = `rgba(10, 12, 28, ${altitudeRatio * 0.6})`;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  const startIdx = Math.max(0, player.y - 10);
-  const endIdx = Math.min(stairs.length, player.y + 22);
-
-  for (let i = startIdx; i < endIdx; i++) {
-    const s = stairs[i];
-    const screenX = centerX + (s.x * STEP_W - camera.x);
-    const screenY = baseScreenY - (s.y * STEP_H - camera.y);
-
-    if (s.isGold) {
-      ctx.fillStyle = "#b7791f";
-      ctx.beginPath();
-      ctx.roundRect(screenX - 25, screenY + 6, 50, 14, 5);
-      ctx.fill();
-
-      ctx.fillStyle = "#ffd32a";
-      ctx.beginPath();
-      ctx.roundRect(screenX - 25, screenY, 50, 13, 5);
-      ctx.fill();
-
-      ctx.fillStyle = "#fff9db";
-      ctx.beginPath();
-      ctx.arc(screenX, screenY + 6.5, 3, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      ctx.fillStyle = "#576574";
-      ctx.beginPath();
-      ctx.roundRect(screenX - 24, screenY + 6, 48, 14, 4);
-      ctx.fill();
-
-      ctx.fillStyle = (i > 0 && i % 50 === 0) ? "#ffdd59" : "#c8d6e5";
-      ctx.beginPath();
-      ctx.roundRect(screenX - 24, screenY, 48, 12, 4);
-      ctx.fill();
-    }
-  }
-
-  const vis = getVisualPlayerPos();
-  const px = centerX + (vis.x * STEP_W - camera.x);
-  const py = baseScreenY - (vis.y * STEP_H - camera.y);
-  const hopOffset = player.animT < 1.0 ? Math.sin(player.animT * Math.PI) * 9 : 0;
-
 function drawFlower(cx, cy, radius = 6.5) {
   ctx.save();
   ctx.translate(cx, cy);
@@ -818,7 +646,6 @@ function drawFlower(cx, cy, radius = 6.5) {
   ctx.strokeStyle = "#1e1e24";
   ctx.lineWidth = 1.6;
 
-  // 4잎 꽃잎
   for (let i = 0; i < 4; i++) {
     ctx.save();
     ctx.rotate((Math.PI / 2) * i + Math.PI / 4);
@@ -829,7 +656,6 @@ function drawFlower(cx, cy, radius = 6.5) {
     ctx.restore();
   }
 
-  // 꽃 중앙 노란 포인트
   ctx.fillStyle = "#ffd32a";
   ctx.beginPath();
   ctx.arc(0, 0, radius * 0.42, 0, Math.PI * 2);
@@ -845,42 +671,34 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   const whiteSkin = "#ffffff";
 
   ctx.save();
-  // 발바닥 기준(0, 0)에서 위로 올라가는 구조
   ctx.translate(px, py - hopOffset);
-
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
-  // 1. 둥근 흰 몸통 & 짧은 두 발
   ctx.fillStyle = whiteSkin;
   ctx.strokeStyle = outline;
   ctx.lineWidth = 2.2;
 
-  // 왼쪽 다리
   ctx.beginPath();
   ctx.roundRect(-11, -14, 10, 14, 5);
   ctx.fill();
   ctx.stroke();
 
-  // 오른쪽 다리
   ctx.beginPath();
   ctx.roundRect(1, -14, 10, 14, 5);
   ctx.fill();
   ctx.stroke();
 
-  // 몸통 (통통한 둥근 형태)
   ctx.beginPath();
   ctx.ellipse(0, -21, 13.5, 11, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // 몸통 위 다리 경계선 정리용 덧칠
   ctx.fillStyle = whiteSkin;
   ctx.beginPath();
   ctx.ellipse(0, -21.5, 12.2, 9.5, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 2. 목 아래 핑크 케이프(카라)
   ctx.fillStyle = pinkHood;
   ctx.strokeStyle = outline;
   ctx.lineWidth = 2.2;
@@ -896,7 +714,6 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 3. 뒤쪽/접힌 토끼 귀 (오른쪽/후면 쪽)
   ctx.fillStyle = pinkHood;
   ctx.beginPath();
   ctx.moveTo(4, -46);
@@ -905,13 +722,11 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 4. 핑크 후드(두건) 본체
   ctx.beginPath();
   ctx.arc(0, -39, 16.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // 5. 길게 뻗은 토끼 귀
   ctx.beginPath();
   ctx.moveTo(-10, -48);
   ctx.bezierCurveTo(-18, -68, -4, -73, 2, -52);
@@ -919,7 +734,6 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 6. 하얀 얼굴 영역 (후드 안쪽)
   ctx.fillStyle = whiteSkin;
   ctx.strokeStyle = outline;
   ctx.lineWidth = 2;
@@ -928,14 +742,12 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 7. 눈, 코, 입 (세로 타원 눈 + 노란 코)
   ctx.fillStyle = outline;
   ctx.beginPath();
   ctx.ellipse(-4.5, -38.5, 2.1, 4.2, 0, 0, Math.PI * 2);
   ctx.ellipse(8.2, -38.5, 2.1, 4.2, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 노란 코
   ctx.fillStyle = "#ffd32a";
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
@@ -944,14 +756,12 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 살짝 웃는 입
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.6;
   ctx.beginPath();
   ctx.arc(2.0, -32.2, 2.6, 0.15 * Math.PI, 0.85 * Math.PI);
   ctx.stroke();
 
-  // 8. 앙증맞은 팔/손 모션 (이동 중 살짝 흔들림)
   const armSwing = hopOffset > 0 ? -3 : 0;
   ctx.fillStyle = whiteSkin;
   ctx.strokeStyle = outline;
@@ -961,7 +771,6 @@ function drawMyMelodyCharacter(px, py, hopOffset) {
   ctx.fill();
   ctx.stroke();
 
-  // 9. 귀 옆 흰 꽃 장식
   drawFlower(-9, -49, 6.2);
 
   ctx.restore();
@@ -1058,6 +867,69 @@ function drawCharacter(px, py, dir, hopOffset) {
   }
 
   ctx.restore();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const centerX = canvas.width / 2;
+  const baseScreenY = canvas.height * 0.65;
+
+  const altitudeRatio = Math.min(1, score / 300);
+  ctx.fillStyle = `rgba(10, 12, 28, ${altitudeRatio * 0.6})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const startIdx = Math.max(0, player.y - 10);
+  const endIdx = Math.min(stairs.length, player.y + 22);
+
+  for (let i = startIdx; i < endIdx; i++) {
+    const s = stairs[i];
+    const screenX = centerX + (s.x * STEP_W - camera.x);
+    const screenY = baseScreenY - (s.y * STEP_H - camera.y);
+
+    if (s.isGold) {
+      ctx.fillStyle = "#b7791f";
+      ctx.beginPath();
+      ctx.roundRect(screenX - 25, screenY + 6, 50, 14, 5);
+      ctx.fill();
+
+      ctx.fillStyle = "#ffd32a";
+      ctx.beginPath();
+      ctx.roundRect(screenX - 25, screenY, 50, 13, 5);
+      ctx.fill();
+
+      ctx.fillStyle = "#fff9db";
+      ctx.beginPath();
+      ctx.arc(screenX, screenY + 6.5, 3, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "#576574";
+      ctx.beginPath();
+      ctx.roundRect(screenX - 24, screenY + 6, 48, 14, 4);
+      ctx.fill();
+
+      ctx.fillStyle = (i > 0 && i % 50 === 0) ? "#ffdd59" : "#c8d6e5";
+      ctx.beginPath();
+      ctx.roundRect(screenX - 24, screenY, 48, 12, 4);
+      ctx.fill();
+    }
+  }
+
+  const vis = getVisualPlayerPos();
+  const px = centerX + (vis.x * STEP_W - camera.x);
+  const py = baseScreenY - (vis.y * STEP_H - camera.y);
+  const hopOffset = player.animT < 1.0 ? Math.sin(player.animT * Math.PI) * 9 : 0;
+
+  drawCharacter(px, py, player.dir, hopOffset);
+
+  for (let p of particles) {
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1.0;
 }
 
 function gameLoop(timestamp) {
