@@ -64,16 +64,17 @@ def init_db():
         conn.commit()
 
 
-def save_score(nickname: str, score: int, character_name: str):
+def save_score(nickname: str, score: int, character_name: str) -> bool:
     clean_name = (nickname or "익명").strip()[:16] or "익명"
     if score <= 0:
-        return
+        return False
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             "INSERT INTO rankings (nickname, score, character_name, created_at) VALUES (?, ?, ?, ?)",
             (clean_name, int(score), character_name, datetime.now().strftime("%Y-%m-%d %H:%M")),
         )
         conn.commit()
+    return True
 
 
 def get_top_rankings(limit: int = 10):
@@ -92,23 +93,9 @@ def get_top_rankings(limit: int = 10):
 
 init_db()
 
-# 랭킹 등록 요청 처리 -> 저장 후 쿼리 정리 + 1회 리런
-qp = st.query_params
-if "register_score" in qp and "token" in qp:
-    token = qp["token"]
-    if token != st.session_state.get("processed_register_token"):
-        try:
-            reg_score = int(qp["register_score"])
-            reg_char = qp.get("char", "열혈 러너")
-            nick = st.session_state.get("player_nickname", "플레이어")
-            if reg_score > 0:
-                save_score(nick, reg_score, reg_char)
-                st.session_state["flash_message"] = f"🏆 '{nick}' 님의 {reg_score}점 기록이 등록되었습니다!"
-            st.session_state["processed_register_token"] = token
-        except ValueError:
-            pass
+# 혹시 남아 있을 수 있는 이전 쿼리 파라미터는 깔끔히 정리
+if st.query_params:
     st.query_params.clear()
-    st.rerun()
 
 if "flash_message" in st.session_state and st.session_state["flash_message"]:
     st.success(st.session_state.pop("flash_message"))
@@ -270,33 +257,20 @@ game_html_template = """
     z-index: 5;
   }
   #overlay h2 { font-size: 30px; margin-bottom: 8px; color: #ffdd59; }
-  #overlay p { font-size: 15px; color: #d2dae2; margin-bottom: 20px; line-height: 1.55; }
-  .overlay-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    width: 100%;
-    max-width: 250px;
-  }
-  #register-btn {
-    padding: 12px 24px;
-    font-size: 17px;
-    font-weight: 800;
-    border: none;
-    border-radius: 12px;
-    background: #0be881;
-    color: #1e272e;
-    cursor: pointer;
-    box-shadow: 0 4px 0 #059c56;
+  #overlay p { font-size: 15px; color: #d2dae2; margin-bottom: 18px; line-height: 1.55; }
+  .hint-box {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #b8e994;
+    margin-bottom: 18px;
     display: none;
   }
-  #register-btn:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
   #start-btn {
-    padding: 13px 28px;
-    font-size: 18px;
+    padding: 13px 32px;
+    font-size: 19px;
     font-weight: 800;
     border: none;
     border-radius: 12px;
@@ -334,10 +308,10 @@ game_html_template = """
       일반 계단(<strong>+1점</strong>)과 <span style="color:#ffd32a; font-weight:700;">황금 계단(+3점 & 시간 보너스)</span>을 공략하세요!<br>
       발을 헛디디거나 시간이 다 되면 종료됩니다.
     </p>
-    <div class="overlay-actions">
-      <button id="register-btn">🏆 랭킹 등록 & 새로고침</button>
-      <button id="start-btn">게임 시작 (Space)</button>
+    <div class="hint-box" id="register-hint">
+      기록을 남기려면 아래 <strong>랭킹 등록</strong> 영역에 점수를 넣고 등록 버튼을 눌러주세요!
     </div>
+    <button id="start-btn">게임 시작 (Space)</button>
   </div>
 </div>
 
@@ -422,7 +396,7 @@ const timerBar = document.getElementById("timer-bar");
 const overlay = document.getElementById("overlay");
 const overlayTitle = document.getElementById("overlay-title");
 const overlayDesc = document.getElementById("overlay-desc");
-const registerBtn = document.getElementById("register-btn");
+const registerHint = document.getElementById("register-hint");
 const startBtn = document.getElementById("start-btn");
 
 const STEP_W = 55;
@@ -442,8 +416,6 @@ let player = {
 };
 let camera = { x: 0, y: 0 };
 let score = 0;
-let lastFinishedScore = 0;
-let hasRegisteredCurrentRun = false;
 let bestScore = Number(localStorage.getItem("infinite_stairs_best") || 0);
 let timeLeft = 100;
 let isPlaying = false;
@@ -500,19 +472,14 @@ function initGame() {
   };
   camera = { x: 0, y: 0 };
   score = 0;
-  lastFinishedScore = 0;
-  hasRegisteredCurrentRun = false;
   timeLeft = 100;
   isPlaying = true;
   isGameOver = false;
   particles = [];
   badgeEl.innerText = "";
 
-  registerBtn.style.display = "none";
-  registerBtn.disabled = false;
-  registerBtn.innerText = "🏆 랭킹 등록 & 새로고침";
-
   scoreEl.innerText = score;
+  registerHint.style.display = "none";
   overlay.style.display = "none";
   lastTime = performance.now();
 }
@@ -587,29 +554,10 @@ function advancePlayer(turned) {
   }
 }
 
-function requestRankingRegisterAndReload() {
-  if (hasRegisteredCurrentRun || lastFinishedScore <= 0) return;
-  hasRegisteredCurrentRun = true;
-  registerBtn.disabled = true;
-  registerBtn.innerText = "등록 중 & 새로고침...";
-
-  const token = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  try {
-    const url = new URL(window.parent.location.href);
-    url.searchParams.set("register_score", String(lastFinishedScore));
-    url.searchParams.set("char", CHAR_CONFIG.name);
-    url.searchParams.set("token", token);
-    window.parent.location.assign(url.toString());
-  } catch (err) {
-    window.location.reload();
-  }
-}
-
 function triggerGameOver(reason) {
   if (isGameOver) return;
   isGameOver = true;
   isPlaying = false;
-  lastFinishedScore = score;
   sfx.gameOver();
 
   if (score > bestScore) {
@@ -619,16 +567,8 @@ function triggerGameOver(reason) {
   }
 
   overlayTitle.innerText = "GAME OVER";
-  overlayDesc.innerHTML = `${reason}<br>최종 기록: <strong style="color:#0be881; font-size:22px;">${score}점</strong>`;
-
-  if (score > 0 && !hasRegisteredCurrentRun) {
-    registerBtn.style.display = "block";
-    registerBtn.disabled = false;
-    registerBtn.innerText = `🏆 랭킹 등록 (${score}점) & 새로고침`;
-  } else {
-    registerBtn.style.display = "none";
-  }
-
+  overlayDesc.innerHTML = `${reason}<br>최종 기록: <strong style="color:#0be881; font-size:24px;">${score}점</strong>`;
+  registerHint.style.display = score > 0 ? "block" : "none";
   startBtn.innerText = "다시 도전 (Space)";
   overlay.style.display = "flex";
 }
@@ -812,7 +752,6 @@ document.getElementById("btn-turn").addEventListener("pointerdown", (e) => {
   e.preventDefault();
   advancePlayer(true);
 });
-registerBtn.addEventListener("click", requestRankingRegisterAndReload);
 startBtn.addEventListener("click", initGame);
 
 requestAnimationFrame(gameLoop);
@@ -831,6 +770,24 @@ game_html = (
 )
 
 components.html(game_html, height=620)
+
+# 선택형 랭킹 등록 (버튼 클릭 시 DB 저장 후 st.rerun()으로 화면 1회 새로고침)
+with st.container(border=True):
+    st.markdown("### 📝 랭킹 등록 (선택)")
+    st.caption("남기고 싶은 기록이 있을 때만 점수를 입력하고 아래 버튼을 누르세요. 등록 즉시 화면이 새로고침됩니다.")
+    reg_col1, reg_col2 = st.columns([1, 1.4])
+    with reg_col1:
+        reg_score = st.number_input("등록할 점수", min_value=1, max_value=99999, value=10, step=1)
+    with reg_col2:
+        st.write("")
+        st.write("")
+        if st.button("🏆 랭킹 등록 & 새로고침", type="primary", use_container_width=True):
+            saved = save_score(nickname, int(reg_score), char_data["name"])
+            if saved:
+                st.session_state["flash_message"] = (
+                    f"🏆 '{(nickname or '익명').strip()[:16] or '익명'}' 님의 {int(reg_score)}점 기록이 등록되었습니다!"
+                )
+            st.rerun()
 
 st.divider()
 st.subheader("🏆 실시간 랭킹 보드 (TOP 10)")
